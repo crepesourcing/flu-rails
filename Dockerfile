@@ -1,4 +1,4 @@
-FROM ruby:2.7.5-slim-bullseye
+FROM ruby:3.4.9-slim-trixie
 
 RUN apt-get update -qq && apt-get install -y build-essential git ruby-dev libsqlite3-dev && apt-get clean && \
   mkdir -p /usr/src/app/lib/flu-rails

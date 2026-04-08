@@ -35,7 +35,7 @@ Each configuration is detailed below.
 
 ## Requirements
 
-* Ruby 2.2
+* Ruby 3
 * Tested with Rails 4 and 5.1
 * Tested with RabbitMQ 3.5.8
 
