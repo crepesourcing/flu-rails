@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [1.1.0] - 2026-07-30
+
+* Upgrade dependencies
+    * `bunny`: `~> 3.1`
+    * `bundler`: `>= 2.6.9`
+    * `sqlite3`: `2.9.5`
+    * `byebug`: `13.0.0`
+* Remove `activesupport` runtime dependency (no longer used directly)
+* Replace deprecated `ActiveSupport::Configurable` with plain `attr_accessor` in `Configuration` (removed in Rails 8.2)
+
 ### [1.0.8] - 2026-04-08
 
 * Upgrade dependencies:

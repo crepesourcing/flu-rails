@@ -36,7 +36,7 @@ Each configuration is detailed below.
 ## Requirements
 
 * Ruby 3
-* Tested with Rails 4 and 5.1
+* Tested with Rails 8+
 * Tested with RabbitMQ 3.5.8
 
 ## Usage
@@ -159,7 +159,7 @@ All options have a default value. However, all of them can be changed in your in
 | `rabbitmq_user` | `""` | String | Required | RabbitMQ exchange's username. | `"root"` |
 | `rabbitmq_password` | `""` | String | Required | RabbitMQ exchange's password. | `"pouet"` |
 | `rabbitmq_exchange_name` | `"events"` | String | Required | RabbitMQ exchange's name. | `"myproject"` |
-| `rabbitmq_management_scheme` | `"http"` | String | Required | RabbitMQ exchange's management scheme. This scheme is used when `happn` must access metadata information about queues, messages, etc. This port is used to create/delete bindings between the queue and its exchange. | `"https"` |
+| `rabbitmq_management_scheme` | `"http"` | String | Required | RabbitMQ exchange's management scheme. This scheme is used when `flu-rails` must access metadata information about queues, messages, etc. This port is used to create/delete bindings between the queue and its exchange. | `"https"` |
 | `rabbitmq_management_port` | `"15672"` | Integer | Optional | RabbitMQ exchange's management port. This port is used when `flu-rails` must access metadata information about queues, messages, etc. This port is important if you want to use an instance of `QueueRepository`. Not required for simple use cases. | `"4242"` |
 | `rabbitmq_exchange_durable` | `true` | Boolean | Optional | Make the RabbitMQ's exchange durable or not. From RabbitMQ's [documentation](https://www.rabbitmq.com/tutorials/amqp-concepts.html#exchanges): _"Durable exchanges survive broker restart whereas transient exchanges do not (they have to be redeclared when broker comes back online)."_ | `false` |
 | `auto_connect_to_exchange` | `true`| Boolean | Optional | Thanks to `Railties`, `flu-rails` starts automatically when the Rails app boots. However, this can be useful to not connect RabbitMQ at start up. To do so, set `auto_connect_to_exchange` to `false`.  | `false` |
