@@ -21,49 +21,38 @@ module Flu
             ignored_request_params   = options.fetch(:ignored_request_params, []).map(&:to_sym)
             emitter_lambda           = options[:emitter]
 
-            before_action do
-              define_request_id
-              @request_start_time = Time.zone.now
-            end
-            prepend_before_action do
-              define_request_entity_metadata_lambda(entity_metadata_lambda)
-            end
-            prepend_after_action do
-              track_requests(event_factory, event_publisher, user_metadata_lambda, ignored_request_params, emitter_lambda)
-              remove_request_entity_metadata_lambda
-            end
-            after_action do
-              remove_request_id
-            end
-
-            def define_request_id
+            # These helpers are defined with 'define_method' rather than 'def' for two reasons. A bare
+            # 'def' opens a new scope, so it captures neither 'logger' nor the tracking options: the
+            # former silently resolved to ActionController::Base#logger, which ignored 'Flu.config.logger'
+            # altogether. And its default definee is the class 'class_eval' was called on, so the helpers
+            # landed on ActionController::Base itself, leaking onto every controller of the host
+            # application. Here 'self' is the class calling 'track_requests', which is where they belong.
+            define_method(:flu_define_request_id) do
               request_id      = SecureRandom.uuid
               @flu_request_id = request_id
               Flu::CoreExt.flu_tracker_request_id = request_id
             end
 
-            def remove_request_id
+            define_method(:flu_remove_request_id) do
               Flu::CoreExt.flu_tracker_request_id = nil
             end
 
-            def define_request_entity_metadata_lambda(entity_metadata_lambda)
+            define_method(:flu_define_request_entity_metadata) do
               Flu::CoreExt.flu_tracker_request_entity_metadata = instance_exec(&entity_metadata_lambda) if entity_metadata_lambda
             end
 
-            def remove_request_entity_metadata_lambda
+            define_method(:flu_remove_request_entity_metadata) do
               Flu::CoreExt.flu_tracker_request_entity_metadata = nil
             end
 
-            def rejected_origin?(request)
-              rejected_user_agents  = Regexp.union(Flu.config.rejected_user_agents)
-              user_agent            = request.user_agent
-              matching_user_agents  = user_agent&.match(rejected_user_agents)
-              !matching_user_agents.nil?
+            define_method(:flu_rejected_origin?) do
+              rejected_user_agents = Regexp.union(Flu.config.rejected_user_agents)
+              !request.user_agent&.match(rejected_user_agents).nil?
             end
 
-            def track_requests(event_factory, event_publisher, user_metadata_lambda, ignored_request_params, emitter_lambda)
-              if rejected_origin?(request)
-                logger.warn "Origin user agent rejected: #{request.user_agent}"
+            define_method(:flu_track_request) do
+              if flu_rejected_origin?
+                logger.warn("Origin user agent rejected: #{request.user_agent}")
               else
                 tracked_request                     = event_factory.create_data_from_request(@flu_request_id,
                                                                                              params,
@@ -76,6 +65,21 @@ module Flu
                 event                               = event_factory.build_request_event(tracked_request)
                 event_publisher.publish(event)
               end
+            end
+
+            before_action do
+              flu_define_request_id
+              @request_start_time = Time.zone.now
+            end
+            prepend_before_action do
+              flu_define_request_entity_metadata
+            end
+            prepend_after_action do
+              flu_track_request
+              flu_remove_request_entity_metadata
+            end
+            after_action do
+              flu_remove_request_id
             end
           end
         end

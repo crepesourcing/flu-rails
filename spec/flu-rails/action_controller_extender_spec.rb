@@ -30,40 +30,109 @@ RSpec.describe Flu::ActionControllerExtender do
       expect(BerserksController.flu_is_tracked).to be false
     end
 
-    let (:dynasties_controller) { DynastiesController.new }
-    let (:ninjas_controller)    { NinjasController.new }
-    let (:farmers_controller)   { FarmersController.new }
+    context "the tracking helpers" do
+      it "should be defined on the tracked controller" do
+        expect(NinjasController.method_defined?(:flu_track_request)).to be true
+      end
+
+      it "should not leak onto ActionController::Base" do
+        expect(ActionController::Base.method_defined?(:flu_track_request)).to be false
+      end
+
+      it "should not leak onto ActionController::API" do
+        expect(ActionController::API.method_defined?(:flu_track_request)).to be false
+      end
+
+      it "should not leak onto an untracked controller" do
+        expect(DynastiesController.method_defined?(:flu_track_request)).to be false
+      end
+    end
 
     context "when calling DynastiesController#create" do
-      xit "should not emit any event" do
-        dynasties_controller.process(:create)
-        expect(@event_publisher.events_count).to eq 0
+      it "should not emit any event" do
+        dispatch_to(DynastiesController, :create)
+        expect(@controller_event_publisher.events_count).to eq 0
       end
     end
 
     context "when calling NinjasController#create" do
       context "with no parameters" do
         before(:each) do
-          # ninjas_controller.set_request!(ActionDispatch::Request.empty)
-          # ninjas_controller.params = ActionController::Parameters.new({})
-          ninjas_controller.process(:create)
+          dispatch_to(NinjasController, :create)
         end
 
-        xit "should emit a single event" do
-          expect(@event_publisher.events_count).to eq 1
+        it "should emit a single event" do
+          expect(@controller_event_publisher.events_count).to eq 1
+        end
+
+        it "should emit a request event named after the controller and the action" do
+          event = published_controller_events.first
+          expect(event.kind).to eq :request
+          expect(event.name).to eq "request to create ninjas"
+        end
+
+        it "should emit an event carrying the request data" do
+          data = published_controller_events.first.data
+          expect(data["controllerName"]).to eq "ninjas"
+          expect(data["actionName"]).to eq "create"
+          expect(data["responseCode"]).to eq 200
+          expect(data["requestId"]).to_not be_nil
+        end
+
+        it "should evaluate the user metadata lambda in the controller's context" do
+          expect(published_controller_events.first.data["userMetadata"]).to eq({
+            "currentUserId" => nil,
+            "clientId"      => nil
+          })
+        end
+
+        it "should use the configured application name as emitter" do
+          expect(published_controller_events.first.emitter).to eq "ninja_app"
         end
       end
     end
 
-    context "when calling farmers_controller#create" do
+    context "when calling FarmersController#create" do
       context "with no parameters" do
         before(:each) do
-          farmers_controller.process(:create)
+          dispatch_to(FarmersController, :create)
         end
 
-        xit "should emit a single event" do
-          expect(@event_publisher.events_count).to eq 1
+        it "should emit a single event" do
+          expect(@controller_event_publisher.events_count).to eq 1
         end
+
+        it "should use the overriden emitter" do
+          expect(published_controller_events.first.emitter).to eq "farmer-app"
+        end
+
+        it "should not publish the overriden emitter as part of the event data" do
+          expect(published_controller_events.first.data).to_not have_key "overridenEmitter"
+        end
+      end
+    end
+
+    context "when the user agent is rejected" do
+      before(:each) { Flu.config.rejected_user_agents = [/BadBot/] }
+      after(:each)  { Flu.config.rejected_user_agents = [] }
+
+      it "should not emit any event" do
+        dispatch_to(NinjasController, :create, "HTTP_USER_AGENT" => "BadBot/1.0")
+        expect(@controller_event_publisher.events_count).to eq 0
+      end
+
+      # Regression test: the warning used to be emitted through ActionController::Base#logger,
+      # because a bare 'def' does not close over the logger given to 'extend_controllers'.
+      it "should warn through the logger Flu was configured with" do
+        expect(@controller_logger).to receive(:warn).with(/Origin user agent rejected: BadBot\/1\.0/)
+        dispatch_to(NinjasController, :create, "HTTP_USER_AGENT" => "BadBot/1.0")
+      end
+    end
+
+    context "when the request has no user agent" do
+      it "should still emit an event" do
+        dispatch_to(NinjasController, :create, "HTTP_USER_AGENT" => nil)
+        expect(@controller_event_publisher.events_count).to eq 1
       end
     end
   end

@@ -62,7 +62,10 @@ module Flu
   end
 
   def self.is_testing_environment?
-    defined?(Rails) && config.development_environments.include?(Rails.env)
+    # 'defined?(Rails)' alone is not enough: gems such as 'rails-html-sanitizer' define an empty
+    # 'Rails' namespace, so the constant can exist without railties ever defining 'Rails.env'.
+    return false unless defined?(Rails) && Rails.respond_to?(:env)
+    config.development_environments.include?(Rails.env)
   end
 
   def self.extend_models_and_controllers

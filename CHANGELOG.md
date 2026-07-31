@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [Unreleased]
+
+**Fixed**
+
+* Honour `configuration.logger` when rejecting a request on its user agent.
+* Stop defining those helpers on `ActionController::Base` and `ActionController::API` themselves.
+* Apply the model's `emitter:` override when exporting existing entities. `Util::ExportService`
+  passed `nil` instead of the model's lambda, so a replayed event carried the global
+  `application_name` while the live event for the same entity carried the overriden one — putting
+  the two on different routing keys. Unnoticed since `1.0.4`, where the option was introduced.
+* Do not assume that a defined `Rails` constant means railties is loaded.
+
+**Changed**
+
+* Stop publishing `overriden_emitter` as part of the event payload.
+
+**Tests**
+
+* Enable the three controller examples that were disabled with `xit`, and run them through the real
+  `ActionController` dispatch, which is what triggers the callbacks registered by `track_requests`.
+  This is the code path that hid the `ActionController::UnfilteredParameters` bug fixed in `8.0.0`.
+* Cover `Util::ExportService`, which had no test at all — and which is how the `emitter:` bug above
+  surfaced.
+* Make the spec setup idempotent. `extend_models`/`track_entity_changes` and
+  `extend_controllers`/`track_requests` register callbacks that accumulate, so a second spec file
+  including a shared context made every model publish its events twice. The suite is now
+  order-independent.
+
 ### [8.0.0] - 2026-07-31
 
 **Fixed**

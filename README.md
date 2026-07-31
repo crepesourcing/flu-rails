@@ -40,7 +40,9 @@ Each configuration is detailed below.
 * Ruby >= 3.2 (tested against 3.2, 3.3 and 3.4)
 * Rails 8 only (`activerecord`, `actionpack` and `activesupport` are runtime dependencies,
   constrained to `~> 8.0`). `flu-rails` extends `ActiveRecord::Base` and `ActionController::Base`, so it requires Rails.
-* Tested with RabbitMQ 3.5.8
+* RabbitMQ: no specific version is required by `flu-rails` itself. The broker is reached through
+  `bunny` 3.x and `rabbitmq_http_api_client` 3.x, which target the
+  [currently supported RabbitMQ release series](https://www.rabbitmq.com/release-information).
 
 ## Usage
 

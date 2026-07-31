@@ -16,12 +16,13 @@ module Flu
           association_columns          = entity_type.flu_association_columns
           user_metadata_lambda         = entity_type.flu_user_metadata_lambdas[:create]
           ignored_model_changes        = entity_type.flu_ignored_model_changes
+          overriden_emitter_lambda     = entity_type.flu_overriden_emitter_lambda
 
           entities.each do |entity|
             print "\r"      unless current_entity_index == 0
             current_entity_index += 1
             print "#{entity_type} (#{current_entity_type_index}/#{total_number_of_entity_types}) : #{current_entity_index}/#{total_number_of_entities}"
-            data            = extract_data_from(entity, event_factory, user_metadata_lambda, association_columns, ignored_model_changes)
+            data            = extract_data_from(entity, event_factory, user_metadata_lambda, association_columns, ignored_model_changes, overriden_emitter_lambda)
             event           = event_factory.build_entity_change_event(data)
             event.timestamp = entity.created_at unless entity.created_at.nil?
             event_publisher.publish(event)
@@ -52,9 +53,17 @@ module Flu
         end
       end
 
-      def extract_data_from(entity, event_factory, user_metadata_lambda, association_columns, ignored_model_changes)
+      def extract_data_from(entity, event_factory, user_metadata_lambda, association_columns, ignored_model_changes, overriden_emitter_lambda)
         changes = create_changes_from_existing(entity)
-        event_factory.create_data_from_entity_changes(:create, entity, nil, nil, changes, user_metadata_lambda, association_columns, ignored_model_changes, nil)
+        event_factory.create_data_from_entity_changes(:create,
+                                                      entity,
+                                                      nil,
+                                                      nil,
+                                                      changes,
+                                                      user_metadata_lambda,
+                                                      association_columns,
+                                                      ignored_model_changes,
+                                                      overriden_emitter_lambda)
       end
 
       def create_changes_from_existing(entity)

@@ -46,5 +46,23 @@ RSpec.describe Flu do
         end
       end
     end
+
+    # Gems such as 'rails-html-sanitizer' declare an empty 'Rails' namespace, so the constant can
+    # exist without railties ever defining 'Rails.env'.
+    context "when the Rails constant exists but is not the Rails framework" do
+      before(:each) { stub_const("Rails", Module.new) }
+
+      it "should not blow up on Rails.env" do
+        set_application_name("flu_test")
+        expect { Flu.init }.to_not raise_error
+      end
+
+      it "should not be considered a testing environment" do
+        set_application_name("flu_test")
+        Flu.init
+        expect(Flu.event_publisher).to be_a Flu::EventPublisher
+        expect(Flu.event_publisher).to_not be_a Flu::Dummy::InMemoryEventPublisher
+      end
+    end
   end
 end

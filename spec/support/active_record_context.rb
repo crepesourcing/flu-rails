@@ -2,12 +2,35 @@ RSpec.configure do |rspec|
   rspec.shared_context_metadata_behavior = :apply_to_host_groups
 end
 
+# 'extend_models' and 'track_entity_changes' register ActiveRecord callbacks, and callbacks
+# accumulate: running this setup twice makes every model publish each of its events twice. More
+# than one spec file includes this context, so the setup must happen exactly once for the whole
+# suite -- and every group must then share the very publisher those callbacks closed over,
+# otherwise the events would be published somewhere the examples cannot see.
+module ActiveRecordTestSetup
+  class << self
+    attr_reader :event_factory, :event_publisher
+
+    def installed?
+      !@event_publisher.nil?
+    end
+
+    def install!
+      @event_factory   = Flu::EventFactory.new(Flu.config)
+      @event_publisher = Flu::Dummy::InMemoryEventPublisher.new(Flu.config)
+      Flu::ActiveRecordExtender.extend_models(@event_factory, @event_publisher)
+    end
+  end
+end
+
 RSpec.shared_context "active records defined", :shared_context => :metadata do
   before(:all) do
     set_application_name("ninja_app")
-    @event_factory   = Flu::EventFactory.new(Flu.config)
-    @event_publisher = Flu::Dummy::InMemoryEventPublisher.new(Flu.config)
-    Flu::ActiveRecordExtender.extend_models(@event_factory, @event_publisher)
+    first_run = !ActiveRecordTestSetup.installed?
+    ActiveRecordTestSetup.install! if first_run
+    @event_factory   = ActiveRecordTestSetup.event_factory
+    @event_publisher = ActiveRecordTestSetup.event_publisher
+    next unless first_run
 
     ActiveRecord::Migration.verbose = false
     @connection = ActiveRecord::Base.establish_connection(:adapter => "sqlite3", :database => ":memory:")

@@ -14,8 +14,9 @@ Gem::Specification.new do |spec|
 
   spec.required_ruby_version = ">= 3.2"
 
+  # 'homepage_uri' is deliberately absent: it would duplicate 'spec.homepage', and RubyGems only
+  # renders the first of two identical URIs while warning about the other at build time.
   spec.metadata = {
-    "homepage_uri"          => spec.homepage,
     "source_code_uri"       => spec.homepage,
     "changelog_uri"         => "#{spec.homepage}/blob/master/CHANGELOG.md",
     "bug_tracker_uri"       => "#{spec.homepage}/issues",
@@ -34,7 +35,6 @@ Gem::Specification.new do |spec|
 
   spec.add_development_dependency "byebug",       "~> 13.0"
   spec.add_development_dependency "ostruct",      "~> 0.6"
-  
   spec.add_development_dependency "rake",         ">= 13.0"
   spec.add_development_dependency "rspec",        "~> 3.13"
   spec.add_development_dependency "sqlite3",      "~> 2.9"
