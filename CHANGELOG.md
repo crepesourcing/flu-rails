@@ -20,15 +20,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Changed**
 
-* `flu-rails` is now explicitly a Rails-only gem: `actionpack`, `activerecord` and `activesupport`
-  (all `>= 7.0`) are declared as runtime dependencies. It extends `ActiveRecord::Base` and
-  `ActionController::Base`, so a standalone `gem install flu-rails` could never work. The README no
-  longer documents a non-Rails startup.
+* **Breaking**: `flu-rails` now supports Rails 8 exclusively. `actionpack`, `activerecord` and
+  `activesupport` are declared as runtime dependencies, constrained to `~> 8.0`. It extends
+  `ActiveRecord::Base` and `ActionController::Base`, so a standalone `gem install flu-rails` could
+  never work; the README no longer documents a non-Rails startup.
+* Drop the pre-Rails-8 compatibility shims that this makes dead code:
+    * `flu_changes_depending_on_active_record_version`, which fell back to `changes` when
+      `saved_changes` was missing (ActiveRecord < 5.1). Tracked models now call `saved_changes`
+      directly. This removes a public `flu_`-prefixed method from every tracked model.
+    * the `Zeitwerk::Loader.eager_load_all` fallback in `Util::ExportService`, from the days of the
+      classic autoloader. Zeitwerk is the only autoloader since Rails 7, and
+      `Rails.application.eager_load!` is authoritative.
 * Restore `activesupport` as a runtime dependency: it was dropped in `1.1.0` as "no longer used
   directly", but the code still relies on `blank?`, `try`, `underscore`, `constantize`,
   `module_parent_name` and `Time.zone`. It only kept working because the host application loaded it.
 * Require the ActiveSupport core extensions that are actually used, rather than relying on the host
   application having loaded them.
+
+**Publishing**
+
+* Add a `Rakefile` (`bundler/gem_tasks` + an `rspec` task), so that `rake release` builds, tags and
+  publishes the gem. `rake` becomes a development dependency.
+* Add `.github/workflows/release.yml`: pushing a `v*` tag checks that the tag matches `Flu::VERSION`,
+  runs the specs, then builds and pushes the gem through RubyGems' Trusted Publishing. No RubyGems
+  API key is stored in the repository — a short-lived GitHub OIDC token is exchanged for a scoped
+  RubyGems credential.
 
 **Verified**
 

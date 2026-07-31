@@ -38,7 +38,8 @@ Each configuration is detailed below.
 ## Requirements
 
 * Ruby >= 3.2 (tested against 3.2, 3.3 and 3.4)
-* Rails >= 7.0 (`activerecord`, `actionpack` and `activesupport` are runtime dependencies).
+* Rails 8 only (`activerecord`, `actionpack` and `activesupport` are runtime dependencies,
+  constrained to `~> 8.0`). `flu-rails` extends `ActiveRecord::Base` and `ActionController::Base`, so it requires Rails.
 * Tested with RabbitMQ 3.5.8
 
 ## Usage
@@ -85,7 +86,7 @@ For instance:
 
 ### Track requests to a Rails Controller action
 
-All subclasses of `ActionController::Base` or `ActionController::API` (Rails 5) that call `track_requests` are "tracked". _E.g._:
+All subclasses of `ActionController::Base` or `ActionController::API` that call `track_requests` are "tracked". _E.g._:
 
   ```ruby
   class ApplicationController < ActionController::Base

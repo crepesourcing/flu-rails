@@ -42,8 +42,7 @@ module Flu
       end
 
       def find_all_entity_types
-        eager_loaded = Rails.application.eager_load!
-        Zeitwerk::Loader.eager_load_all if !eager_loaded && defined?(Zeitwerk)
+        Rails.application.eager_load!
         ActiveRecord::Base.descendants
       end
 

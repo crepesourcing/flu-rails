@@ -25,15 +25,17 @@ Gem::Specification.new do |spec|
   spec.files = Dir.glob(["lib/**/*.rb", "CHANGELOG.md", "MIT-LICENSE", "README.md"])
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "actionpack",               ">= 7.0"
-  spec.add_dependency "activerecord",             ">= 7.0"
-  spec.add_dependency "activesupport",            ">= 7.0"
+  spec.add_dependency "actionpack",               "~> 8.0"
+  spec.add_dependency "activerecord",             "~> 8.0"
+  spec.add_dependency "activesupport",            "~> 8.0"
   spec.add_dependency "bunny",                    "~> 3.1"
   spec.add_dependency "logger",                   "~> 1.7"
   spec.add_dependency "rabbitmq_http_api_client", "~> 3.2"
 
   spec.add_development_dependency "byebug",       "~> 13.0"
   spec.add_development_dependency "ostruct",      "~> 0.6"
+  # Required by 'rake release', which builds and publishes the gem from the CI.
+  spec.add_development_dependency "rake",         ">= 13.0"
   spec.add_development_dependency "rspec",        "~> 3.13"
   spec.add_development_dependency "sqlite3",      "~> 2.9"
 end

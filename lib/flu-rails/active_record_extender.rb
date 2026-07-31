@@ -10,8 +10,8 @@ module Flu
           self.flu_ignored_model_changes    = options.fetch(:ignored_model_changes, []).map(&:to_s)
           self.flu_overriden_emitter_lambda = options.fetch(:emitter, nil)
         
-          after_create   { flu_track_entity_change(:create, flu_changes_depending_on_active_record_version, event_factory) }
-          after_update   { flu_track_entity_change(:update, flu_changes_depending_on_active_record_version, event_factory) }
+          after_create   { flu_track_entity_change(:create, saved_changes, event_factory) }
+          after_update   { flu_track_entity_change(:update, saved_changes, event_factory) }
           after_destroy  { flu_track_entity_change(:destroy, { "id" => [id, nil] }, event_factory) }
           after_commit   { flu_commit_changes(event_factory, event_publisher) }
           after_rollback { flu_rollback_changes }
@@ -55,10 +55,6 @@ module Flu
             column_names.push(association.foreign_type) if association.polymorphic?
             column_names
           end
-        end
-
-        def flu_changes_depending_on_active_record_version
-          respond_to?(:saved_changes) ? saved_changes : changes
         end
 
         def flu_changes
