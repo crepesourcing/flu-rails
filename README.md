@@ -266,3 +266,23 @@ For instance, calling the action `destroy` of `CountryController` will emit this
 ## Side-notes
 
 * `assocations` node contains `belongs_to` associations only.
+
+
+## How to release a new version
+
+Releases are published to [RubyGems](https://rubygems.org/gems/flu-rails) by GitHub Actions
+(`.github/workflows/release.yml`), through [Trusted Publishing](https://guides.rubygems.org/trusted-publishing/):
+no API key is stored in this repository, the workflow exchanges a short-lived GitHub OIDC token for a
+scoped RubyGems credential.
+
+1. Update `Flu::VERSION` in `lib/flu-rails/version.rb` and the `CHANGELOG.md`
+2. Commit and push these changes to `master`
+3. Tag the commit and push the tag:
+
+```
+  $ git tag -a v8.0.0 -m "Version 8.0.0"
+  $ git push origin v8.0.0
+```
+
+The workflow then checks that the tag matches `Flu::VERSION`, runs the tests, builds the gem
+and pushes it. It only publishes tags starting with `v`.
