@@ -1,5 +1,7 @@
 # Gem for flu-rails
 
+[![CI](https://github.com/crepesourcing/flu-rails/actions/workflows/ci.yml/badge.svg)](https://github.com/crepesourcing/flu-rails/actions/workflows/ci.yml)
+
 ## Description
 
 This project aims at seamlessly creating/emitting events from an existing Rails project (without changing its codebase) in order to execute asynchronous tasks such as event storing, real time analytics, system monitoring,...
@@ -35,8 +37,8 @@ Each configuration is detailed below.
 
 ## Requirements
 
-* Ruby 3
-* Tested with Rails 8+
+* Ruby >= 3.2 (tested against 3.2, 3.3 and 3.4)
+* Tested with Rails 8 (`activerecord` and `actionpack`)
 * Tested with RabbitMQ 3.5.8
 
 ## Usage

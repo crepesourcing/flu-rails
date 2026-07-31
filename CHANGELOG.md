@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [1.2.0] - 2026-07-31
+
+* Declare `required_ruby_version` as `>= 3.2`
+* Test the specs on Ruby 3.2, 3.3 and 3.4 through GitHub Actions (`.github/workflows/ci.yml`)
+* Declare `logger` as an explicit runtime dependency (it is required directly, and stops being a default gem in Ruby 3.5)
+* Relax the exact development dependency pins (`rspec`, `sqlite3`, `byebug`) to pessimistic constraints,
+  and drop the redundant lower bounds on `bunny` and `rabbitmq_http_api_client`
+* Drop `bundler` as a development dependency
+* Add `ostruct` as a development dependency (used by the specs, becomes a bundled gem in Ruby 3.5)
+* Remove the unused `Flu::Dummy::EventPublisherDummy`, superseded by `Flu::Dummy::InMemoryEventPublisher` since `0.2.0`
+* Fill in the gemspec `homepage`, `description` and `metadata`, and build `spec.files` from `Dir.glob`
+  instead of `git ls-files` (which returned nothing outside of a git checkout, such as in the Docker image)
+* Stop tracking `Gemfile.lock`, so that each supported Ruby resolves its own dependencies
+
 ### [1.1.0] - 2026-07-30
 
 * Upgrade dependencies

@@ -1,14 +1,13 @@
 FROM ruby:3.4.9-slim-trixie
 
-RUN apt-get update -qq && apt-get install -y build-essential git ruby-dev libsqlite3-dev && apt-get clean && \
-  mkdir -p /usr/src/app/lib/flu-rails
+RUN apt-get update -qq && \
+  apt-get install -y --no-install-recommends build-essential libsqlite3-dev && \
+  rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
 
-COPY Gemfile /usr/src/app/
-COPY Gemfile.lock /usr/src/app/
-COPY flu-rails.gemspec /usr/src/app/
-COPY lib/flu-rails/version.rb /usr/src/app/lib/flu-rails/
+COPY Gemfile flu-rails.gemspec ./
+COPY lib/flu-rails/version.rb lib/flu-rails/
 RUN bundle install
-COPY . /usr/src/app
-RUN bundle install
+
+COPY . .
