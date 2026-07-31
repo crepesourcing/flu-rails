@@ -25,13 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Enable the three controller examples that were disabled with `xit`, and run them through the real
   `ActionController` dispatch, which is what triggers the callbacks registered by `track_requests`.
-  This is the code path that hid the `ActionController::UnfilteredParameters` bug fixed in `8.0.0`.
+  This is the code path that hid the `ActionController::UnfilteredParameters` bug fixed in `8.0.1`.
 * Cover `Util::ExportService`, which had no test at all — and which is how the `emitter:` bug above
   surfaced.
 * Make the spec setup idempotent
 * Integration tests with RabbitMQ
 
-### [8.0.0] - 2026-07-31
+### [8.0.1] - 2026-07-31
 
 **Fixed**
 
