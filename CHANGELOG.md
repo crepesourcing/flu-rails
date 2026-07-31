@@ -5,42 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### [Unreleased]
+### [8.0.0] - 2026-07-31
 
 **Fixed**
 
 * Fix tracking a controller request raising `ActionController::UnfilteredParameters`. Controller params
   reach `EventFactory` as unpermitted `ActionController::Parameters`, on which `to_h` raises
-  (Rails >= 5.1); the unsafe hash is now used, which is what a read-only tracker needs. This broke
+  (Rails >= 5.1). The unsafe hash is now used, which is what a read-only tracker needs. This broke
   `track_requests` entirely, and went unnoticed because its specs are disabled (`xit`).
 * Fix `Flu.init` raising `configuration.application_name must not be nil` on a stock Rails application.
-  The default was computed when the gem was required — that is, from `Bundler.require` in
-  `config/application.rb`, before the application class exists and while `Rails.application` is still
-  nil. It is now resolved lazily from `init`, which the railtie runs in `to_prepare`.
 
 **Changed**
 
-* **Breaking**: `flu-rails` now supports Rails 8 exclusively. `actionpack`, `activerecord` and
-  `activesupport` are declared as runtime dependencies, constrained to `~> 8.0`. It extends
-  `ActiveRecord::Base` and `ActionController::Base`, so a standalone `gem install flu-rails` could
-  never work; the README no longer documents a non-Rails startup.
+* **Breaking**: `flu-rails` now supports Rails 8 exclusively.
 * Drop the pre-Rails-8 compatibility shims that this makes dead code:
-    * `flu_changes_depending_on_active_record_version`, which fell back to `changes` when
-      `saved_changes` was missing (ActiveRecord < 5.1). Tracked models now call `saved_changes`
-      directly. This removes a public `flu_`-prefixed method from every tracked model.
-    * the `Zeitwerk::Loader.eager_load_all` fallback in `Util::ExportService`, from the days of the
-      classic autoloader. Zeitwerk is the only autoloader since Rails 7, and
-      `Rails.application.eager_load!` is authoritative.
-* Restore `activesupport` as a runtime dependency: it was dropped in `1.1.0` as "no longer used
-  directly", but the code still relies on `blank?`, `try`, `underscore`, `constantize`,
-  `module_parent_name` and `Time.zone`. It only kept working because the host application loaded it.
-* Require the ActiveSupport core extensions that are actually used, rather than relying on the host
-  application having loaded them.
+    * `flu_changes_depending_on_active_record_version`
+    * the `Zeitwerk::Loader.eager_load_all` fallback in `Util::ExportService`
+* Restore `activesupport` as a runtime dependency
+* Require the ActiveSupport core extensions that are actually used
 
 **Publishing**
 
-* Add a `Rakefile` (`bundler/gem_tasks` + an `rspec` task), so that `rake release` builds, tags and
-  publishes the gem. `rake` becomes a development dependency.
+* Add a `Rakefile` (`bundler/gem_tasks` + an `rspec` task), so that `rake release` builds, tags and publishes the gem. `rake` becomes a development dependency.
 * Add `.github/workflows/release.yml`: pushing a `v*` tag checks that the tag matches `Flu::VERSION`,
   runs the specs, then builds and pushes the gem through RubyGems' Trusted Publishing. No RubyGems
   API key is stored in the repository — a short-lived GitHub OIDC token is exchanged for a scoped

@@ -34,7 +34,7 @@ Gem::Specification.new do |spec|
 
   spec.add_development_dependency "byebug",       "~> 13.0"
   spec.add_development_dependency "ostruct",      "~> 0.6"
-  # Required by 'rake release', which builds and publishes the gem from the CI.
+  
   spec.add_development_dependency "rake",         ">= 13.0"
   spec.add_development_dependency "rspec",        "~> 3.13"
   spec.add_development_dependency "sqlite3",      "~> 2.9"
