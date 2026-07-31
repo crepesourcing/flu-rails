@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [Unreleased]
+
+**Fixed**
+
+* Fix tracking a controller request raising `ActionController::UnfilteredParameters`. Controller params
+  reach `EventFactory` as unpermitted `ActionController::Parameters`, on which `to_h` raises
+  (Rails >= 5.1); the unsafe hash is now used, which is what a read-only tracker needs. This broke
+  `track_requests` entirely, and went unnoticed because its specs are disabled (`xit`).
+* Fix `Flu.init` raising `configuration.application_name must not be nil` on a stock Rails application.
+  The default was computed when the gem was required — that is, from `Bundler.require` in
+  `config/application.rb`, before the application class exists and while `Rails.application` is still
+  nil. It is now resolved lazily from `init`, which the railtie runs in `to_prepare`.
+
+**Changed**
+
+* `flu-rails` is now explicitly a Rails-only gem: `actionpack`, `activerecord` and `activesupport`
+  (all `>= 7.0`) are declared as runtime dependencies. It extends `ActiveRecord::Base` and
+  `ActionController::Base`, so a standalone `gem install flu-rails` could never work. The README no
+  longer documents a non-Rails startup.
+* Restore `activesupport` as a runtime dependency: it was dropped in `1.1.0` as "no longer used
+  directly", but the code still relies on `blank?`, `try`, `underscore`, `constantize`,
+  `module_parent_name` and `Time.zone`. It only kept working because the host application loaded it.
+* Require the ActiveSupport core extensions that are actually used, rather than relying on the host
+  application having loaded them.
+
+**Verified**
+
+* Verified against Rails 8.1 on a real application: railtie boot, `ActiveRecord` and
+  `ActionController::Base`/`API` tracking through the full Rack stack, request id propagation from a
+  controller into its entity-change events, uploaded file mapping and user-agent rejection — with
+  every framework deprecator set to `:raise`. No deprecation is triggered.
+
 ### [1.2.0] - 2026-07-31
 
 * Declare `required_ruby_version` as `>= 3.2`

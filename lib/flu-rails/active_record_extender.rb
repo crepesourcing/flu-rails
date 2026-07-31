@@ -1,3 +1,5 @@
+require "active_support/core_ext/object/try"
+
 module Flu
   class ActiveRecordExtender
     def self.extend_models(event_factory, event_publisher)

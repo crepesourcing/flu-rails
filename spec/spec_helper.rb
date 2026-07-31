@@ -1,4 +1,9 @@
 require "byebug"
+require "active_support"
+require "active_support/time"
+
+Time.zone = "UTC"
+
 require_relative "support/action_controller_spec_helper"
 require_relative "support/active_record_spec_helper"
 require_relative "../lib/flu-rails"

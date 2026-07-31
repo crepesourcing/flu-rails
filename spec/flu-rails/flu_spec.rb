@@ -15,6 +15,19 @@ RSpec.describe Flu do
         Flu.init
         expect(Flu.config.application_name).to eq "flu_test"
       end
+
+      it "should resolve application_name at init, not when the configuration is loaded" do
+        reset_application_name
+        expect(Flu.config.application_name).to be_nil
+        Flu.init
+        expect(Flu.config.application_name).to eq "flu_test"
+      end
+
+      it "should keep an explicitly configured application_name" do
+        set_application_name("explicitly_set")
+        Flu.init
+        expect(Flu.config.application_name).to eq "explicitly_set"
+      end
     end
 
     context "when Rails is not loaded" do

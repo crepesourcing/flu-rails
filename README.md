@@ -16,7 +16,7 @@ For now, events are generated from:
 Add the gem to your project's Gemfile:
 
   ```ruby
-  gem "flu-rails", git: "https://github.com/crepesourcing/flu-rails.git"
+  gem "flu-rails"
   ```
 
 Then, create an initializer into your Rails app (`config/initializers/flu-rails.rb`)
@@ -38,20 +38,15 @@ Each configuration is detailed below.
 ## Requirements
 
 * Ruby >= 3.2 (tested against 3.2, 3.3 and 3.4)
-* Tested with Rails 8 (`activerecord` and `actionpack`)
+* Rails >= 7.0 (`activerecord`, `actionpack` and `activesupport` are runtime dependencies).
 * Tested with RabbitMQ 3.5.8
 
 ## Usage
 
 ### Start up
 
-If your application does not include `Railties`, `flu-rails` can be started as followed:
-  ```
-  Flu.init
-  Flu.start
-  ```
-
-`flu-rails` startup waits until its RabbitMQ exchange is connected.
+`flu-rails` starts automatically through its `Railtie`: there is nothing to call by hand.
+Its startup waits until its RabbitMQ exchange is connected.
 
 ### Track changes on an ActiveRecord model
 
@@ -167,7 +162,7 @@ All options have a default value. However, all of them can be changed in your in
 | `auto_connect_to_exchange` | `true`| Boolean | Optional | Thanks to `Railties`, `flu-rails` starts automatically when the Rails app boots. However, this can be useful to not connect RabbitMQ at start up. To do so, set `auto_connect_to_exchange` to `false`.  | `false` |
 | `default_ignored_model_changes` | `[:password, :password_confirmation, :created_at, :updated_at]` | Boolean | Optional | By default, all these attributes will be ignored from model changes when creating an event. For instance, this means that timestamp fields (`created_at` and `updated_at`) are not monitored when they change. | `[]` |
 | `default_ignored_request_params` | `[:password, :password_confirmation, :controller, :action]` | Boolean | Optional | By default, all these parameters will be ignored from controller request's `params` when creating an event. | `false` |
-| `application_name` | `Rails.application.class.parent_name.to_s.camelize` | String | Required | Is used as `emitter` for each event created by `flu-rails`, if not overriden by the `track_met`. | `my_app` |
+| `application_name` | `Rails.application.class.module_parent_name`, resolved on startup | String | Required | Is used as `emitter` for each event created by `flu-rails`, if not overriden by the `track_met`. | `my_app` |
 | `bunny_options` | `{}` | Hash of symbols | Optional | Additional options to add when connecting the RabbitMQ broker. This overrides the existing options with the same name. | `{ verify_peer: true }` |
 
 ## How to execute tests

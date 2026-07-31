@@ -1,3 +1,6 @@
+require "active_support/core_ext/string/inflections"
+require "active_support/core_ext/time/zones"
+
 module Flu
   class ActionControllerExtender
     def self.extend_controllers(event_factory, event_publisher, logger)

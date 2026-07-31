@@ -1,4 +1,7 @@
 require "securerandom"
+require "active_support/core_ext/object/blank"
+require "active_support/core_ext/string/inflections"
+require "active_support/core_ext/time/zones"
 require_relative "event"
 
 module Flu
@@ -71,11 +74,16 @@ module Flu
         response_code:   response.status,
         user_agent:      request.user_agent,
         duration:        Time.zone.now - request_start_time,
-        params:          params.except(*ignored_request_params).except(*@default_ignored_request_params).to_h
+        params:          extract_params(params, ignored_request_params)
       }
     end
 
     private
+
+    def extract_params(params, ignored_request_params)
+      remaining = params.except(*ignored_request_params).except(*@default_ignored_request_params)
+      remaining.respond_to?(:to_unsafe_h) ? remaining.to_unsafe_h.to_h : remaining.to_h
+    end
 
     def deep_camelize(value)
       case value

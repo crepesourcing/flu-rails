@@ -20,6 +20,42 @@ RSpec.describe Flu::EventFactory do
     end
   end
 
+  describe "#create_data_from_request" do
+    let(:request)  { double("request", original_fullpath: "/orders", user_agent: "RSpec") }
+    let(:response) { double("response", status: 200) }
+
+    context "when params are unpermitted ActionController::Parameters" do
+      let(:params) {
+        ActionController::Parameters.new("price"    => "10",
+                                         "c"        => "ignored by configuration",
+                                         "secret"   => "ignored by the caller",
+                                         "controller" => "orders",
+                                         "action"     => "create")
+      }
+      let(:data) { factory.create_data_from_request("req-1", params, request, response, 0.0, [:secret]) }
+
+      it "should not raise" do
+        expect { data }.not_to raise_error
+      end
+
+      it "should keep the remaining params" do
+        expect(data[:params]).to eq({ "price" => "10", "controller" => "orders", "action" => "create" })
+      end
+
+      it "should drop the params ignored by the caller" do
+        expect(data[:params]).not_to have_key "secret"
+      end
+
+      it "should drop the params ignored by the configuration" do
+        expect(data[:params]).not_to have_key "c"
+      end
+
+      it "should return a plain Hash, not Parameters" do
+        expect(data[:params]).to be_an_instance_of Hash
+      end
+    end
+  end
+
   describe "#build_entity_change_event" do
     let(:data) {
       {

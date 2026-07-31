@@ -1,5 +1,6 @@
 require "logger"
 require "json"
+require "active_support/core_ext/module/introspection"
 require_relative "flu-rails/version"
 require_relative "flu-rails/event"
 require_relative "flu-rails/event_factory"
@@ -33,11 +34,21 @@ module Flu
   end
 
   def self.init
+    @configuration.application_name ||= default_application_name
     raise "configuration.application_name must not be nil" if @configuration.application_name.nil?
     @logger          = @configuration.logger
     @event_factory   = Flu::EventFactory.new(@configuration)
     @event_publisher = create_event_publisher(@configuration)
     extend_models_and_controllers
+  end
+
+  def self.default_application_name
+    if defined?(Rails) && Rails.respond_to?(:application)
+      application = Rails.application
+      application.nil? ? nil : application.class.module_parent_name
+    else
+      nil
+    end
   end
 
   def self.create_event_publisher(configuration)
@@ -79,7 +90,7 @@ module Flu
       config.auto_connect_to_exchange       = true
       config.default_ignored_model_changes  = [:password, :password_confirmation, :created_at, :updated_at]
       config.default_ignored_request_params = [:password, :password_confirmation, :controller, :action]
-      config.application_name               = defined?(Rails) ? Rails.application.class.module_parent_name : nil
+      config.application_name               = nil
       config.bunny_options                  = {}
     end
   end

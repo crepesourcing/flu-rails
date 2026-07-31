@@ -25,12 +25,13 @@ Gem::Specification.new do |spec|
   spec.files = Dir.glob(["lib/**/*.rb", "CHANGELOG.md", "MIT-LICENSE", "README.md"])
   spec.require_paths = ["lib"]
 
+  spec.add_dependency "actionpack",               ">= 7.0"
+  spec.add_dependency "activerecord",             ">= 7.0"
+  spec.add_dependency "activesupport",            ">= 7.0"
   spec.add_dependency "bunny",                    "~> 3.1"
   spec.add_dependency "logger",                   "~> 1.7"
   spec.add_dependency "rabbitmq_http_api_client", "~> 3.2"
 
-  spec.add_development_dependency "actionpack",   "~> 8.0"
-  spec.add_development_dependency "activerecord", "~> 8.0"
   spec.add_development_dependency "byebug",       "~> 13.0"
   spec.add_development_dependency "ostruct",      "~> 0.6"
   spec.add_development_dependency "rspec",        "~> 3.13"
