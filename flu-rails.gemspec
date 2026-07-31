@@ -18,7 +18,7 @@ Gem::Specification.new do |spec|
   # renders the first of two identical URIs while warning about the other at build time.
   spec.metadata = {
     "source_code_uri"       => spec.homepage,
-    "changelog_uri"         => "#{spec.homepage}/blob/master/CHANGELOG.md",
+    "changelog_uri"         => "#{spec.homepage}/blob/main/CHANGELOG.md",
     "bug_tracker_uri"       => "#{spec.homepage}/issues",
     "rubygems_mfa_required" => "true"
   }

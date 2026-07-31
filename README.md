@@ -278,7 +278,7 @@ no API key is stored in this repository, the workflow exchanges a short-lived Gi
 scoped RubyGems credential.
 
 1. Update `Flu::VERSION` in `lib/flu-rails/version.rb` and the `CHANGELOG.md`
-2. Commit and push these changes to `master`
+2. Commit and push these changes to `main`
 3. Tag the commit and push the tag:
 
 ```
