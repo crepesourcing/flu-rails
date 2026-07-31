@@ -1,0 +1,30 @@
+services:
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: flu-rails-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: flu
+      RABBITMQ_DEFAULT_PASS: flu
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "--quiet", "check_port_connectivity"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+      start_period: 10s
+
+  specs:
+    build: .
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      FLU_RABBITMQ_HOST: rabbitmq
+      FLU_RABBITMQ_USER: flu
+      FLU_RABBITMQ_PASSWORD: flu
+      FLU_REQUIRE_RABBITMQ: "true"
+    volumes:
+      - .:/usr/src/app
+    command: bundle exec rspec

@@ -3,8 +3,8 @@ require_relative "lib/flu-rails/version"
 Gem::Specification.new do |spec|
   spec.name        = "flu-rails"
   spec.version     = Flu::VERSION
-  spec.authors     = ["Loïc Vigneron", "Lorent Lempereur", "Thibault Poncelet"]
-  spec.email       = ["info@spin42.com", "info@commuty.net"]
+  spec.authors     = ["Loïc Vigneron", "Lorent Lempereur", "Thibault Poncelet", "Logan Clément"]
+  spec.email       = ["support@commuty.net"]
   spec.summary     = "Track your application events and publish them to RabbitMQ."
   spec.description = "Seamlessly emit events from an existing Rails application, without changing its " \
                      "codebase, and publish them to RabbitMQ. Events are generated from CRUD operations " \
@@ -14,8 +14,6 @@ Gem::Specification.new do |spec|
 
   spec.required_ruby_version = ">= 3.2"
 
-  # 'homepage_uri' is deliberately absent: it would duplicate 'spec.homepage', and RubyGems only
-  # renders the first of two identical URIs while warning about the other at build time.
   spec.metadata = {
     "source_code_uri"       => spec.homepage,
     "changelog_uri"         => "#{spec.homepage}/blob/main/CHANGELOG.md",
@@ -23,7 +21,7 @@ Gem::Specification.new do |spec|
     "rubygems_mfa_required" => "true"
   }
 
-  spec.files = Dir.glob(["lib/**/*.rb", "CHANGELOG.md", "MIT-LICENSE", "README.md"])
+  spec.files = Dir.glob(["lib/**/*.rb", "CHANGELOG.md", "MIT-LICENSE", "README.md", "flu-rails.gemspec"])
   spec.require_paths = ["lib"]
 
   spec.add_dependency "actionpack",               "~> 8.0"

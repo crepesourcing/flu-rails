@@ -28,10 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   This is the code path that hid the `ActionController::UnfilteredParameters` bug fixed in `8.0.0`.
 * Cover `Util::ExportService`, which had no test at all — and which is how the `emitter:` bug above
   surfaced.
-* Make the spec setup idempotent. `extend_models`/`track_entity_changes` and
-  `extend_controllers`/`track_requests` register callbacks that accumulate, so a second spec file
-  including a shared context made every model publish its events twice. The suite is now
-  order-independent.
+* Make the spec setup idempotent
+* Integration tests with RabbitMQ
 
 ### [8.0.0] - 2026-07-31
 

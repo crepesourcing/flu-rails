@@ -173,9 +173,31 @@ All options have a default value. However, all of them can be changed in your in
 From the `flu-rails` directory:
 
 ```
-  $ docker build . -t flu:test
-  $ docker run -v `pwd`:/usr/src/app/ flu:test rspec spec
+  $ docker compose run --rm specs
 ```
+
+This starts a RabbitMQ broker, waits for it, and runs the whole suite against it.
+
+Part of the suite publishes to a real broker and drives its HTTP management API: nothing there is
+stubbed, since a stub cannot tell whether the gem actually speaks AMQP. To run the specs directly on
+your machine, start a broker first:
+
+```
+  $ docker compose up -d rabbitmq
+  $ bundle exec rspec
+```
+
+Without one, those examples are reported as skipped and the rest of the suite still runs. Set
+`FLU_REQUIRE_RABBITMQ` to turn that skip into a failure — this is what the CI workflow does, so that
+a build cannot report success without having reached RabbitMQ:
+
+```
+  $ FLU_REQUIRE_RABBITMQ=true bundle exec rspec
+```
+
+A broker of your own can be used instead through `FLU_RABBITMQ_HOST`, `FLU_RABBITMQ_PORT`,
+`FLU_RABBITMQ_MANAGEMENT_PORT`, `FLU_RABBITMQ_USER` and `FLU_RABBITMQ_PASSWORD`. Every example
+declares an exchange and queues of its own, and deletes them afterwards.
 
 ## Example of Events
 

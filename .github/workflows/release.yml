@@ -26,6 +26,22 @@ jobs:
       contents: write # 'rake release' pushes the version tag when it does not exist yet
       id-token: write # mandatory to request the OIDC token used by trusted publishing
 
+    services:
+      rabbitmq:
+        image: rabbitmq:4-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: flu
+          RABBITMQ_DEFAULT_PASS: flu
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics --quiet check_port_connectivity"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 12
+          --health-start-period 10s
+
     steps:
       - uses: actions/checkout@v4
 
@@ -45,6 +61,10 @@ jobs:
 
       - name: Run tests
         run: bundle exec rspec
+        env:
+          FLU_RABBITMQ_USER: flu
+          FLU_RABBITMQ_PASSWORD: flu
+          FLU_REQUIRE_RABBITMQ: "true"
 
       # Builds the gem, pushes it to RubyGems.org and waits for it to be available.
       - uses: rubygems/release-gem@v1
