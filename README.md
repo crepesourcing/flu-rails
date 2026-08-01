@@ -304,8 +304,8 @@ scoped RubyGems credential.
 3. Tag the commit and push the tag:
 
 ```
-  $ git tag -a v8.0.3 -m "Version 8.0.3"
-  $ git push origin v8.0.3
+  $ git tag -a v8.0.4 -m "Version 8.0.4"
+  $ git push origin v8.0.4
 ```
 
 The workflow then checks that the tag matches `Flu::VERSION`, runs the tests, builds the gem
