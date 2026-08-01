@@ -38,6 +38,10 @@ module Flu
     raise "configuration.application_name must not be nil" if @configuration.application_name.nil?
     @logger          = @configuration.logger
     @event_factory   = Flu::EventFactory.new(@configuration)
+    # The railtie re-runs 'init' on every code reload. The publisher being replaced owns an open
+    # connection, its channel and Bunny's heartbeat thread: dropping the reference to it without
+    # closing it leaks all three for the lifetime of the process.
+    @event_publisher&.disconnect
     @event_publisher = create_event_publisher(@configuration)
     extend_models_and_controllers
   end

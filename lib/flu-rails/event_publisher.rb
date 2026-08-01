@@ -17,16 +17,39 @@ module Flu
     end
 
     def connect
-      connected = false
-      while !connected
-        begin
-          connect_to_exchange
-          connected = true
-        rescue Bunny::TCPConnectionFailedForAllHosts
-          @logger.warn("RabbitMQ connection failed, try again in 1 second.")
-          sleep 1
+      unless connected?
+        connected = false
+        while !connected
+          begin
+            connect_to_exchange
+            connected = true
+          rescue Bunny::TCPConnectionFailedForAllHosts
+            @logger.warn("RabbitMQ connection failed, try again in 1 second.")
+            sleep 1
+          end
         end
       end
+    end
+
+    def connected?
+      if @connection.nil? || @exchange.nil?
+        false
+      else
+        @connection.open?
+      end
+    end
+
+    # Closing the connection closes the channel opened on it, and stops the heartbeat and recovery
+    # threads Bunny runs alongside it.
+    # The guard is on the connection alone, not on 'connected?': a connection that was opened before
+    # the exchange could be declared still has to be closed.
+    def disconnect
+      if !@connection.nil? && @connection.open?
+        @connection.close 
+      end
+      @connection = nil
+      @channel    = nil
+      @exchange   = nil
     end
 
     private

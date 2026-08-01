@@ -11,10 +11,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Honour the host application's `config.filter_parameters` when publishing a `request` event.
 
+**Fixed**
+
+* Stop opening two RabbitMQ connections on every boot. The railtie called `Flu.start
+* Close the publisher that `Flu.init` replaces.
+
+**Added**
+
+* `EventPublisher#disconnect` and `EventPublisher#connected?`.
+
 **Changed**
 
 * `ignored_request_params` and `default_ignored_request_params` are now matched as strings.
 * A published `request` event may now carry `"[FILTERED]"` in place of a param value. 
+* `EventPublisher#connect` is now idempotent: calling it on a connected publisher does nothing
+  instead of opening a second connection.
+
+**Tests**
+
+* Cover the connection lifecycle against a real broker: redundant `connect` calls, `disconnect`,
+  `connected?`, and reconnection after a disconnect — including an example asserting that no session
+  is left open behind the publisher.
+* Cover `Flu.init` disconnecting the publisher it replaces.
 
 ### [8.0.3] - 2026-08-01
 

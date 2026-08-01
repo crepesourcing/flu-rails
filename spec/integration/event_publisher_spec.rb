@@ -66,6 +66,68 @@ RSpec.describe Flu::EventPublisher, :rabbitmq do
       end
     end
 
+    # The railtie used to call 'Flu.start' from both 'to_prepare' and 'after_initialize', which both
+    # run at boot: the second call replaced '@connection' with a new one, and the first was left open
+    # for the lifetime of the process, along with the channel and the heartbeat thread hanging off it.
+    context "when it is already connected" do
+      before(:each) { publisher.connect }
+
+      it "should not open a second connection" do
+        expect(Bunny).to_not receive(:new)
+        publisher.connect
+      end
+
+      it "should keep the connection it already had" do
+        first_connection = publisher.instance_variable_get(:@connection)
+        publisher.connect
+        expect(publisher.instance_variable_get(:@connection)).to be first_connection
+      end
+
+      it "should still publish on it" do
+        queue = subscribe_to
+        publisher.connect
+        publisher.publish(event)
+        expect(message_count_on(queue, expected: 1)).to eq 1
+      end
+    end
+
+    # What the leak actually looked like on the broker: the second 'connect' overwrote '@connection',
+    # so the first session stayed open with nothing referencing it any more — 'disconnect' could not
+    # close what the publisher no longer held.
+    it "should not leave an unreferenced session open behind it" do
+      sessions = []
+      allow(Bunny).to receive(:new).and_wrap_original do |original, *arguments|
+        session = original.call(*arguments)
+        sessions.push(session)
+        session
+      end
+
+      publisher.connect
+      publisher.connect
+      publisher.disconnect
+
+      expect(sessions.select(&:open?)).to be_empty
+    end
+
+    context "when the connection was closed" do
+      before(:each) do
+        publisher.connect
+        publisher.disconnect
+      end
+
+      it "should open a new one" do
+        publisher.connect
+        expect(publisher).to be_connected
+      end
+
+      it "should publish on it" do
+        queue = subscribe_to
+        publisher.connect
+        publisher.publish(event)
+        expect(message_count_on(queue, expected: 1)).to eq 1
+      end
+    end
+
     context "when the credentials are refused" do
       let(:configuration) { RabbitmqHelper.configuration(rabbitmq_password: "not-the-password") }
 
@@ -111,6 +173,42 @@ RSpec.describe Flu::EventPublisher, :rabbitmq do
         expect(logger).to receive(:warn).with("RabbitMQ connection failed, try again in 1 second.").twice
         expect { publisher.connect }.to raise_error("give up")
       end
+    end
+  end
+
+  describe "#connected?" do
+    it "should be false before connecting" do
+      expect(publisher).to_not be_connected
+    end
+
+    it "should be true once connected" do
+      publisher.connect
+      expect(publisher).to be_connected
+    end
+
+    it "should be false again once disconnected" do
+      publisher.connect
+      publisher.disconnect
+      expect(publisher).to_not be_connected
+    end
+  end
+
+  describe "#disconnect" do
+    it "should close the connection on the broker's side too" do
+      publisher.connect
+      connection = publisher.instance_variable_get(:@connection)
+      publisher.disconnect
+      expect(connection).to_not be_open
+    end
+
+    it "should do nothing when it was never connected" do
+      expect { publisher.disconnect }.to_not raise_error
+    end
+
+    it "should be callable twice" do
+      publisher.connect
+      publisher.disconnect
+      expect { publisher.disconnect }.to_not raise_error
     end
   end
 

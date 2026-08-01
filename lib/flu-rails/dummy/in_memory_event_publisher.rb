@@ -20,7 +20,14 @@ module Flu
   
       def connect
       end
-  
+
+      def connected?
+        true
+      end
+
+      def disconnect
+      end
+
       def events_count
         @published_events_by_routing_key.map do | key, value |
           value.size

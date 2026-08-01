@@ -47,6 +47,27 @@ RSpec.describe Flu do
       end
     end
 
+    # The railtie re-runs 'init' on every code reload, and 'init' builds a new publisher every time.
+    # The one it replaces owns an open connection and Bunny's heartbeat thread, which nothing else
+    # would ever close.
+    context "when a publisher has already been created" do
+      before(:each) { set_application_name("flu_test") }
+
+      it "should disconnect the publisher it replaces" do
+        Flu.init
+        previous_publisher = Flu.event_publisher
+        expect(previous_publisher).to receive(:disconnect)
+        Flu.init
+      end
+
+      it "should replace it" do
+        Flu.init
+        previous_publisher = Flu.event_publisher
+        Flu.init
+        expect(Flu.event_publisher).to_not be previous_publisher
+      end
+    end
+
     # Gems such as 'rails-html-sanitizer' declare an empty 'Rails' namespace, so the constant can
     # exist without railties ever defining 'Rails.env'.
     context "when the Rails constant exists but is not the Rails framework" do
