@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [Unreleased]
+
+**Security**
+
+* Honour the host application's `config.filter_parameters` when publishing a `request` event.
+
+**Changed**
+
+* `ignored_request_params` and `default_ignored_request_params` are now matched as strings.
+* A published `request` event may now carry `"[FILTERED]"` in place of a param value. 
+
 ### [8.0.3] - 2026-08-01
 
 * Use `uuid_v7` as Event ID (requires Ruby 3.3)

@@ -18,21 +18,35 @@ RSpec.describe Flu::EventFactory do
         expect(factory.instance_variable_get(:@default_ignored_model_changes)).to eq ["a", "b"]
       end
     end
+
+    context "when default_ignored_request_params contains symbols" do
+      it "should convert them into strings" do
+        expect(factory.instance_variable_get(:@default_ignored_request_params)).to eq ["c", "d"]
+      end
+    end
   end
 
   describe "#create_data_from_request" do
-    let(:request)  { double("request", original_fullpath: "/orders", user_agent: "RSpec") }
+    let(:filtered_parameters) do
+      {
+        "price"      => "10",
+        "c"          => "ignored by configuration",
+        "secret"     => "ignored by the caller",
+        "controller" => "orders",
+        "action"     => "create"
+      }
+    end
+    let(:request) do
+      double("request",
+             original_fullpath:   "/orders",
+             user_agent:          "RSpec",
+             filtered_parameters: filtered_parameters)
+    end
     let(:response) { double("response", status: 200) }
 
     context "when params are unpermitted ActionController::Parameters" do
-      let(:params) {
-        ActionController::Parameters.new("price"    => "10",
-                                         "c"        => "ignored by configuration",
-                                         "secret"   => "ignored by the caller",
-                                         "controller" => "orders",
-                                         "action"     => "create")
-      }
-      let(:data) { factory.create_data_from_request("req-1", params, request, response, 0.0, [:secret]) }
+      let(:params) { ActionController::Parameters.new("controller" => "orders", "action" => "create") }
+      let(:data)   { factory.create_data_from_request("req-1", params, request, response, 0.0, [:secret]) }
 
       it "should not raise" do
         expect { data }.not_to raise_error
@@ -52,6 +66,22 @@ RSpec.describe Flu::EventFactory do
 
       it "should return a plain Hash, not Parameters" do
         expect(data[:params]).to be_an_instance_of Hash
+      end
+    end
+
+    context "when the host application's filter_parameters masked a nested value" do
+      let(:filtered_parameters) do
+        {
+          "controller" => "orders",
+          "action"     => "create",
+          "user"       => { "email" => "hanzo@example.com", "password" => "[FILTERED]" }
+        }
+      end
+      let(:params) { ActionController::Parameters.new("controller" => "orders", "action" => "create") }
+      let(:data)   { factory.create_data_from_request("req-1", params, request, response, 0.0, []) }
+
+      it "should keep the redaction Rails already applied, even though it is nested" do
+        expect(data[:params]["user"]).to eq({ "email" => "hanzo@example.com", "password" => "[FILTERED]" })
       end
     end
   end

@@ -11,7 +11,7 @@ module Flu
       @configuration                  = configuration
       @emitter                        = configuration.application_name
       @default_ignored_model_changes  = configuration.default_ignored_model_changes.map(&:to_s)
-      @default_ignored_request_params = configuration.default_ignored_request_params
+      @default_ignored_request_params = configuration.default_ignored_request_params.map(&:to_s)
     end
 
     def build_request_event(data)
@@ -77,15 +77,15 @@ module Flu
         response_code:   response.status,
         user_agent:      request.user_agent,
         duration:        Time.zone.now - request_start_time,
-        params:          extract_params(params, ignored_request_params)
+        params:          extract_params(request, ignored_request_params)
       }
     end
 
     private
 
-    def extract_params(params, ignored_request_params)
-      remaining = params.except(*ignored_request_params).except(*@default_ignored_request_params)
-      remaining.respond_to?(:to_unsafe_h) ? remaining.to_unsafe_h.to_h : remaining.to_h
+    def extract_params(request, ignored_request_params)
+      excluded_params = ignored_request_params.map(&:to_s) + @default_ignored_request_params
+      request.filtered_parameters.except(*excluded_params)
     end
 
     def deep_camelize(value)
