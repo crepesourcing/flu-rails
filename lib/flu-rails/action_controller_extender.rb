@@ -1,5 +1,7 @@
 require "active_support/core_ext/string/inflections"
 require "active_support/core_ext/time/zones"
+require "random/formatter"
+require "securerandom"
 
 module Flu
   class ActionControllerExtender
@@ -28,7 +30,7 @@ module Flu
             # landed on ActionController::Base itself, leaking onto every controller of the host
             # application. Here 'self' is the class calling 'track_requests', which is where they belong.
             define_method(:flu_define_request_id) do
-              request_id      = SecureRandom.uuid
+              request_id      = Random.respond_to?(:uuid_v7) ? Random.uuid_v7 : SecureRandom.uuid
               @flu_request_id = request_id
               Flu::CoreExt.flu_tracker_request_id = request_id
             end

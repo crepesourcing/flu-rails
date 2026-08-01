@@ -50,7 +50,8 @@ module Flu
       final_emitter     = overriden_emitter.blank? ? original_emitter : overriden_emitter
       # 'overriden_emitter' selects the emitter of the event, it is not part of what is tracked:
       # it is dropped from the payload instead of being published as an 'overridenEmitter' key.
-      Event.new(SecureRandom.uuid, final_emitter, kind, name, deep_camelize(data.except(:overriden_emitter)))
+      uuid = Random.respond_to?(:uuid_v7) ? Random.uuid_v7 : SecureRandom.uuid
+      Event.new(uuid, final_emitter, kind, name, deep_camelize(data.except(:overriden_emitter)))
     end
 
     def create_data_from_entity_changes(action_name, entity, request_id, request_entity_metadata, changes, user_metadata_lambda, association_columns, ignored_model_changes, flu_overriden_emitter_lambda)
