@@ -91,22 +91,13 @@ module Flu
     def deep_camelize(value)
       case value
       when Array
-        value.map { |v| deep_camelize v }
+        value.map { |v| deep_camelize(v) }
       when Hash
-        value.reduce({}) do |camelized_hash, (k,v)|
-          camelized_hash[camelize(sanitize(k.to_s), false)] = deep_camelize v
-          camelized_hash
+        value.each_with_object({}) do |(k, v), camelized_hash|
+          camelized_hash[sanitize(k.to_s).camelize(:lower)] = deep_camelize(v)
         end
       else
         sanitize(value)
-      end
-    end
-
-    def camelize(lower_case_and_underscored_word, first_letter_in_uppercase = true)
-      if first_letter_in_uppercase
-        lower_case_and_underscored_word.to_s.gsub(/\/(.?)/) { "::" + $1.upcase }.gsub(/(^|_)(.)/) { $2.upcase }
-      else
-        (lower_case_and_underscored_word[0] || "") + camelize(lower_case_and_underscored_word)[1..-1]
       end
     end
 

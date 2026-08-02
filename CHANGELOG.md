@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+**Performance**
+
+* Optimize `deep_camelize` to use `each_with_object` and `ActiveSupport::Inflector#camelize` to improve performance and reduce memory consumption.
+
 **Tests**
 
 * Add `simplecov` as a development dependency to track and report code coverage.
