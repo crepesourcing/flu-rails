@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Performance**
 
 * Optimize `deep_camelize` to use `each_with_object` and `ActiveSupport::Inflector#camelize` to improve performance and reduce memory consumption.
+* Add `# frozen_string_literal: true` to all ruby files to reduce string allocations.
 
 **Tests**
 

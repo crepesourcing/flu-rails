@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Flu
   class Railtie < Rails::Railtie
     railtie_name :flu

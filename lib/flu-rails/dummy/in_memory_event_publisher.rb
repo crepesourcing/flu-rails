@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Flu
   module Dummy
     class InMemoryEventPublisher < Flu::EventPublisher

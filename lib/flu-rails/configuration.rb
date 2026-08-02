@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Flu
   class Configuration
     attr_accessor :development_environments,

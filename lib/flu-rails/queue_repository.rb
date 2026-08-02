@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "rabbitmq/http/client"
 
 module Flu
