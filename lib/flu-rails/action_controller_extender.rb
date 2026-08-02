@@ -71,19 +71,17 @@ module Flu
               end
             end
 
-            before_action do
+            prepend_around_action do |_controller, action|
               flu_define_request_id
-              @request_start_time = Time.zone.now
-            end
-            prepend_before_action do
               flu_define_request_entity_metadata
-            end
-            prepend_after_action do
-              flu_track_request
-              flu_remove_request_entity_metadata
-            end
-            after_action do
-              flu_remove_request_id
+              @request_start_time = Time.zone.now
+              begin
+                action.call
+                flu_track_request
+              ensure
+                flu_remove_request_entity_metadata
+                flu_remove_request_id
+              end
             end
           end
         end

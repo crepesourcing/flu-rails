@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Fixed**
 
 * Track Single Table Inheritance subclasses. ActiveRecord hands the callbacks registered by `track_entity_changes` down to subclasses, but the class-level instance variables holding their settings were not inherited, so every save of an STI subclass of a tracked model raised `NoMethodError` on `nil`. `flu_is_tracked`, `flu_user_metadata_lambdas`, `flu_ignored_model_changes` and `flu_overriden_emitter_lambda` are now declared with `class_attribute`, which a subclass inherits until it sets its own value.
+* Always clear the per-request tracking state, even when an action raises. The request id and the entity metadata are stored in thread-local storage and were cleared from an `after_action`, which does not run when the action raises. Since application servers reuse their threads, a failed request left its id behind for the next request served by that same thread, whose entity changes were then attributed to a request that had already died. `track_requests` now installs a single `around_action` that clears both from an `ensure` block.
+
+**Changed**
+
+* A `request` event is now built once every other `after_action` has run, so its `duration` covers them too. An action that raises still publishes nothing.
 
 **Performance**
 
@@ -18,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Tests**
 
+* Cover `entity_metadata`, which had no test at all: its lambda is evaluated before the action runs, and its result is cleared afterwards.
+* Cover what a raising action leaves behind in the thread-local tracking state.
 * Add `simplecov` as a development dependency to track and report code coverage.
 * Add support for the `RABBITMQ_VERSION` environment variable in `docker-compose.yml` to allow testing locally against different versions of RabbitMQ.
 * Configure GitHub Actions CI to run the test suite against a matrix of RabbitMQ versions (3.12, 3.13, and 4.0).

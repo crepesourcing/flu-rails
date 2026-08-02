@@ -75,6 +75,10 @@ RSpec.shared_context "controllers defined", :shared_context => :metadata do
       def index
         self.response_body = "indexed"
       end
+
+      def boom
+        raise "kaboom"
+      end
     end
 
     class DynastiesController < ApplicationController
@@ -91,6 +95,10 @@ RSpec.shared_context "controllers defined", :shared_context => :metadata do
 
     class FarmersController < ApplicationController
       track_requests emitter: lambda { "farmer-app" }
+    end
+
+    class SamuraisController < ApplicationController
+      track_requests entity_metadata: lambda { { path: request.path } }
     end
 
     class BerserksController < ActionController::API

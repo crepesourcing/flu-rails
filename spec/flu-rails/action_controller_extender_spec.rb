@@ -135,5 +135,61 @@ RSpec.describe Flu::ActionControllerExtender do
         expect(@controller_event_publisher.events_count).to eq 1
       end
     end
+
+    context "when an entity metadata lambda is given" do
+      it "should expose its result while the action runs" do
+        seen = nil
+        allow_any_instance_of(SamuraisController).to receive(:create) do |controller|
+          seen = Flu::CoreExt.flu_tracker_request_entity_metadata
+          controller.response_body = "created"
+        end
+        dispatch_to(SamuraisController, :create)
+        expect(seen).to eq({ path: "/" })
+      end
+
+      it "should clear it once the action is done" do
+        dispatch_to(SamuraisController, :create)
+        expect(Flu::CoreExt.flu_tracker_request_entity_metadata).to be_nil
+      end
+    end
+
+    context "when the action raises" do
+      def dispatch_failing_action(controller_class)
+        dispatch_to(controller_class, :boom)
+      rescue RuntimeError
+        nil
+      end
+
+      after(:each) do
+        Flu::CoreExt.flu_tracker_request_id              = nil
+        Flu::CoreExt.flu_tracker_request_entity_metadata = nil
+      end
+
+      it "should let the exception through" do
+        expect { dispatch_to(NinjasController, :boom) }.to raise_error(RuntimeError, "kaboom")
+      end
+
+      it "should not emit any event" do
+        dispatch_failing_action(NinjasController)
+        expect(@controller_event_publisher.events_count).to eq 0
+      end
+
+      it "should leave no request id behind" do
+        dispatch_failing_action(NinjasController)
+        expect(Flu::CoreExt.flu_tracker_request_id).to be_nil
+      end
+
+      it "should leave no entity metadata behind" do
+        dispatch_failing_action(SamuraisController)
+        expect(Flu::CoreExt.flu_tracker_request_entity_metadata).to be_nil
+      end
+
+      it "should not attribute the next request to the failed one" do
+        dispatch_failing_action(NinjasController)
+        dispatch_to(NinjasController, :create)
+        expect(published_controller_events.size).to eq 1
+        expect(published_controller_events.first.data["requestId"]).to_not be_nil
+      end
+    end
   end
 end
