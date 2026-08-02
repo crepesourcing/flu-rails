@@ -1,11 +1,16 @@
 # frozen_string_literal: true
 
 require "bunny"
+require_relative "errors"
 require_relative "event"
 
 
 module Flu
   class EventPublisher
+    NOT_CONNECTED_MESSAGE = "no connection to RabbitMQ: 'connect' was never called, or " \
+                            "'disconnect' was. The railtie calls it at boot unless " \
+                            "'auto_connect_to_exchange' is false."
+
     def initialize(configuration)
       @logger        = configuration.logger
       @configuration = configuration
@@ -58,9 +63,12 @@ module Flu
     # No bookkeeping of the channels handed out is needed. 
     # Closing the connection closes all of them, so a thread holding a closed channel simply opens a new one on its next publication:
     # 'disconnect' and a reconnection are both covered without reaching into other threads.
+    # Only the absence of a connection is reported here. A connection that exists but is closed or
+    # recovering is Bunny's story to tell, and its own error says more about it than this one could.
     def exchange
       cached = Thread.current[@exchange_key]
       return cached if cached && cached.channel.open?
+      raise NotConnectedError, NOT_CONNECTED_MESSAGE if @connection.nil?
       Thread.current[@exchange_key] = declare_exchange
     end
 

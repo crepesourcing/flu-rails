@@ -205,6 +205,13 @@ RSpec.describe Flu::EventPublisher, :rabbitmq do
       expect { publisher.disconnect }.to_not raise_error
     end
 
+    it "should make a later publication raise instead of failing on a nil connection" do
+      publisher.connect
+      publisher.publish(event)
+      publisher.disconnect
+      expect { publisher.publish(event) }.to raise_error(Flu::NotConnectedError)
+    end
+
     it "should be callable twice" do
       publisher.connect
       publisher.disconnect

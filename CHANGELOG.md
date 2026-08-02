@@ -12,8 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Track Single Table Inheritance subclasses. ActiveRecord hands the callbacks registered by `track_entity_changes` down to subclasses, but the class-level instance variables holding their settings were not inherited, so every save of an STI subclass of a tracked model raised `NoMethodError` on `nil`. `flu_is_tracked`, `flu_user_metadata_lambdas`, `flu_ignored_model_changes` and `flu_overriden_emitter_lambda` are now declared with `class_attribute`, which a subclass inherits until it sets its own value.
 * Always clear the per-request tracking state, even when an action raises. The request id and the entity metadata are stored in thread-local storage and were cleared from an `after_action`, which does not run when the action raises. Since application servers reuse their threads, a failed request left its id behind for the next request served by that same thread, whose entity changes were then attributed to a request that had already died. `track_requests` now installs a single `around_action` that clears both from an `ensure` block.
 
+**Added**
+
+* `Flu::Error`, the base class of every error this gem raises on its own, and `Flu::NotConnectedError`.
+
 **Changed**
 
+* Publishing through a publisher that holds no connection now raises `Flu::NotConnectedError`, naming what to call and the option that turns the automatic connection off, instead of a `NoMethodError` on `nil`.
 * A `request` event is now built once every other `after_action` has run, so its `duration` covers them too. An action that raises still publishes nothing.
 * `EventPublisher` opens one Bunny channel per thread instead of sharing a single one.
 * `EventPublisher#connected?` now reports on the connection alone. The exchange is declared per thread, so it is no longer a single object whose absence says anything about the publisher as a whole.
