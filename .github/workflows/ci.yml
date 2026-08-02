@@ -12,17 +12,18 @@ concurrency:
 
 jobs:
   spec:
-    name: RSpec (Ruby ${{ matrix.ruby }})
+    name: RSpec (Ruby ${{ matrix.ruby }}, RabbitMQ ${{ matrix.rabbitmq }})
     runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
       matrix:
         ruby: ["3.2", "3.3", "3.4"]
+        rabbitmq: ["3.12-management-alpine", "3.13-management-alpine", "4-management-alpine"]
 
     services:
       rabbitmq:
-        image: rabbitmq:4-management-alpine
+        image: rabbitmq:${{ matrix.rabbitmq }}
         env:
           RABBITMQ_DEFAULT_USER: flu
           RABBITMQ_DEFAULT_PASS: flu

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [Unreleased]
+
+**Tests**
+
+* Add `simplecov` as a development dependency to track and report code coverage.
+* Add support for the `RABBITMQ_VERSION` environment variable in `docker-compose.yml` to allow testing locally against different versions of RabbitMQ.
+* Configure GitHub Actions CI to run the test suite against a matrix of RabbitMQ versions (3.12, 3.13, and 4.0).
+
 ### [8.0.4] - 2026-08-01
 
 **Security**

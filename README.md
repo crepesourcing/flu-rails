@@ -43,6 +43,7 @@ Each configuration is detailed below.
 * RabbitMQ: no specific version is required by `flu-rails` itself. The broker is reached through
   `bunny` 3.x and `rabbitmq_http_api_client` 3.x, which target the
   [currently supported RabbitMQ release series](https://www.rabbitmq.com/release-information).
+  It is actively tested against RabbitMQ 3.12, 3.13, and 4.x.
 
 ## Usage
 
@@ -185,6 +186,12 @@ your machine, start a broker first:
 ```
   $ docker compose up -d rabbitmq
   $ bundle exec rspec
+```
+
+You can optionally specify the RabbitMQ version to use by providing the `RABBITMQ_VERSION` environment variable (defaults to `4-management-alpine`):
+
+```
+  $ RABBITMQ_VERSION=3.13-management-alpine docker compose up -d rabbitmq
 ```
 
 Without one, those examples are reported as skipped and the rest of the suite still runs. Set

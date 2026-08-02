@@ -1,6 +1,6 @@
 services:
   rabbitmq:
-    image: rabbitmq:4-management-alpine
+    image: rabbitmq:${RABBITMQ_VERSION:-4-management-alpine}
     container_name: flu-rails-rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: flu
