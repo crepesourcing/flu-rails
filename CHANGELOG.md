@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Changed**
 
 * A `request` event is now built once every other `after_action` has run, so its `duration` covers them too. An action that raises still publishes nothing.
+* `EventPublisher` opens one Bunny channel per thread instead of sharing a single one.
+* `EventPublisher#connected?` now reports on the connection alone. The exchange is declared per thread, so it is no longer a single object whose absence says anything about the publisher as a whole.
 
 **Performance**
 
@@ -23,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Tests**
 
+* Cover which channel a thread publishes on, against a real broker: each thread gets its own, reuses it across publications, and picks up a fresh one after the connection was closed under it.
 * Cover `entity_metadata`, which had no test at all: its lambda is evaluated before the action runs, and its result is cleared afterwards.
 * Cover what a raising action leaves behind in the thread-local tracking state.
 * Add `simplecov` as a development dependency to track and report code coverage.

@@ -285,4 +285,73 @@ RSpec.describe Flu::EventPublisher, :rabbitmq do
       end
     end
   end
+
+  describe "channels" do
+    def exchange_of_current_thread
+      publisher.send(:exchange)
+    end
+
+    before(:each) { publisher.connect }
+
+    it "should give each thread a channel of its own" do
+      connecting_thread_channel = exchange_of_current_thread.channel.id
+      worker_channels = 2.times.map do
+        Thread.new do
+          publisher.publish(event)
+          exchange_of_current_thread.channel.id
+        end
+      end.map(&:value)
+
+      expect(worker_channels.uniq.size).to eq 2
+      expect(worker_channels).to_not include connecting_thread_channel
+    end
+
+    it "should reuse the same channel across publications of one thread" do
+      Thread.new do
+        publisher.publish(event)
+        first = exchange_of_current_thread
+        publisher.publish(event)
+        expect(exchange_of_current_thread).to be first
+      end.join
+    end
+
+    it "should deliver everything published from several threads at once" do
+      queue = subscribe_to
+      4.times.map { Thread.new { 5.times { publisher.publish(event) } } }.each(&:join)
+      expect(message_count_on(queue, expected: 20)).to eq 20
+    end
+
+    # The publisher keeps no registry of the channels it handed out, so this is what makes
+    # 'disconnect' safe: a thread that was never told about it finds its channel closed and opens
+    # a new one by itself.
+    it "should replace a cached channel that the connection closed under it" do
+      resume    = Queue.new
+      exchanges = Queue.new
+
+      worker = Thread.new do
+        publisher.publish(event)
+        exchanges.push(exchange_of_current_thread)
+        resume.pop
+        publisher.publish(event)
+        exchanges.push(exchange_of_current_thread)
+      end
+
+      # Every wait is bounded: a worker that dies on a closed channel must fail this example
+      # rather than hang it, which is exactly what the single-channel publisher used to do here.
+      before_disconnect = exchanges.pop(timeout: 10)
+      expect(before_disconnect).to_not be_nil, "the worker never published"
+
+      publisher.disconnect
+      publisher.connect
+      resume.push(:go)
+
+      after_reconnect = exchanges.pop(timeout: 10)
+      expect(after_reconnect).to_not be_nil, "the worker never published again after the reconnection"
+      worker.join(10)
+
+      expect(before_disconnect.channel).to_not be_open
+      expect(after_reconnect).to_not be before_disconnect
+      expect(after_reconnect.channel).to be_open
+    end
+  end
 end
