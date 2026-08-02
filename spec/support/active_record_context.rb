@@ -59,6 +59,13 @@ RSpec.shared_context "active records defined", :shared_context => :metadata do
         t.string  :master_type
         t.timestamps
       end
+      create_table :weapons do |t|
+        t.string  :name
+        t.string  :type
+        t.string  :serial_number
+        t.integer :dynasty_id
+        t.timestamps
+      end
     end
 
     def self.init
@@ -101,12 +108,31 @@ RSpec.shared_context "active records defined", :shared_context => :metadata do
       track_entity_changes emitter: lambda { " star-wars application " }
       belongs_to :master, polymorphic: true
     end
+
+    # Single Table Inheritance: only the base class calls 'track_entity_changes'. ActiveRecord
+    # hands its callbacks down to 'Katana', so the subclass must find the very settings those
+    # callbacks read -- 'user_metadata', 'ignored_model_changes' and the tracking flag itself.
+    class Weapon < ActiveRecord::Base
+      track_entity_changes user_metadata: {
+        create: lambda {
+          {
+            dynastyName: dynasty.name
+          }
+        }
+      }, ignored_model_changes: ["serial_number"]
+
+      belongs_to :dynasty
+    end
+
+    class Katana < Weapon
+    end
   end
 
   after(:each) do
     @event_publisher.clear
     ActiveRecord::Base.connection.execute("DELETE FROM ninjas")
     ActiveRecord::Base.connection.execute("DELETE FROM dynasties")
+    ActiveRecord::Base.connection.execute("DELETE FROM weapons")
   end
 end
 

@@ -6,6 +6,13 @@ module Flu
   class ActiveRecordExtender
     def self.extend_models(event_factory, event_publisher)
       ActiveRecord::Base.class_eval do
+        unless singleton_class.method_defined?(:flu_is_tracked)
+          class_attribute :flu_is_tracked,               instance_accessor: false, default: false
+          class_attribute :flu_user_metadata_lambdas,    instance_accessor: false, default: {}.freeze
+          class_attribute :flu_ignored_model_changes,    instance_accessor: false, default: [].freeze
+          class_attribute :flu_overriden_emitter_lambda, instance_accessor: false, default: nil
+        end
+
         define_singleton_method(:track_entity_changes) do |options = {}|
           self.flu_is_tracked               = true
           self.flu_user_metadata_lambdas    = options.fetch(:user_metadata, {})
@@ -17,38 +24,6 @@ module Flu
           after_destroy  { flu_track_entity_change(:destroy, { "id" => [id, nil] }, event_factory) }
           after_commit   { flu_commit_changes(event_factory, event_publisher) }
           after_rollback { flu_rollback_changes }
-        end
-
-        def self.flu_ignored_model_changes=(ignored_model_changes)
-          @flu_ignored_model_changes = ignored_model_changes
-        end
-
-        def self.flu_ignored_model_changes
-          @flu_ignored_model_changes
-        end
-
-        def self.flu_overriden_emitter_lambda=(overriden_emitter_lambda)
-          @flu_overriden_emitter_lambda = overriden_emitter_lambda
-        end
-
-        def self.flu_overriden_emitter_lambda
-          @flu_overriden_emitter_lambda
-        end
-
-        def self.flu_user_metadata_lambdas=(user_metadata_lambdas)
-          @flu_user_metadata_lambdas = user_metadata_lambdas
-        end
-
-        def self.flu_user_metadata_lambdas
-          @flu_user_metadata_lambdas
-        end
-
-        def self.flu_is_tracked=(is_tracked)
-          @flu_is_tracked = is_tracked
-        end
-
-        def self.flu_is_tracked
-          @flu_is_tracked || false
         end
 
         def self.flu_association_columns

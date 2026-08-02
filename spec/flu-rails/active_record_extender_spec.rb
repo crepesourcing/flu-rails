@@ -540,5 +540,65 @@ RSpec.describe Flu::ActiveRecordExtender do
         end
       end
     end
+
+    context "with a Single Table Inheritance subclass of a tracked model" do
+      let(:dynasty) { Dynasty.create!(name: "Tokugawa", year: 1603) }
+
+      it "considers the subclass tracked" do
+        expect(Katana.flu_is_tracked).to be true
+      end
+
+      it "inherits the user metadata lambdas of its parent" do
+        expect(Katana.flu_user_metadata_lambdas.keys).to eq [:create]
+      end
+
+      it "inherits the ignored model changes of its parent" do
+        expect(Katana.flu_ignored_model_changes).to eq ["serial_number"]
+      end
+
+      it "inherits the association columns of its parent" do
+        expect(Katana.flu_association_columns).to include "dynasty_id"
+      end
+
+      context "when saving a subclass instance" do
+        before(:each) do
+          Katana.create!(name: "Masamune", dynasty: dynasty, serial_number: "SN-1")
+        end
+
+        def fetch_event_for_new_katana
+          @event_publisher.fetch_events("new.ninja_app.entity_change.create katana").first
+        end
+
+        it "emits a single event" do
+          expect(@event_publisher.events_count).to eq 1
+        end
+
+        it "names the event after the subclass" do
+          expect(fetch_event_for_new_katana.data["entityName"]).to eq "katana"
+        end
+
+        it "applies the user metadata lambdas of its parent" do
+          expect(fetch_event_for_new_katana.data["userMetadata"]).to eq({ "dynastyName" => "Tokugawa" })
+        end
+
+        it "applies the ignored model changes of its parent" do
+          expect(fetch_event_for_new_katana.data["changes"]).to_not have_key "serialNumber"
+        end
+
+        it "reports the associations of its parent" do
+          expect(fetch_event_for_new_katana.data["associations"]).to eq({ "dynastyId" => dynasty.id })
+        end
+      end
+
+      context "when saving the parent class itself" do
+        before(:each) do
+          Weapon.create!(name: "Naginata", dynasty: dynasty, serial_number: "SN-2")
+        end
+
+        it "still emits an event named after the parent" do
+          expect(@event_publisher.fetch_events("new.ninja_app.entity_change.create weapon").size).to eq 1
+        end
+      end
+    end
   end
 end
