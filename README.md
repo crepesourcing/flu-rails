@@ -194,6 +194,8 @@ You can optionally specify the RabbitMQ version to use by providing the `RABBITM
   $ RABBITMQ_VERSION=3.13-management-alpine docker compose up -d rabbitmq
 ```
 
+Our continuous integration pipeline (via GitHub Actions) systematically runs the integration test suite against a matrix of RabbitMQ versions (3.12, 3.13, and 4.x) to ensure seamless backward and forward compatibility.
+
 Without one, those examples are reported as skipped and the rest of the suite still runs. Set
 `FLU_REQUIRE_RABBITMQ` to turn that skip into a failure — this is what the CI workflow does, so that
 a build cannot report success without having reached RabbitMQ:
