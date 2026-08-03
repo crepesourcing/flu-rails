@@ -22,7 +22,7 @@ module Flu
       raise ArgumentError, "data must have an controller_name" if !data.has_key?(:controller_name) || data[:controller_name].empty?
       name  = "request to #{data[:action_name]} #{data[:controller_name]}"
       event = build_event(name, :request, data)
-      @logger.debug("Track action: #{JSON.pretty_generate(event)}")
+      @logger.debug { "Track action: #{event.to_json}" }
       event
     end
 
@@ -33,7 +33,7 @@ module Flu
       raise ArgumentError, "data must have an entity_name" if !data.has_key?(:entity_name) || data[:entity_name].empty?
       name  = "#{data[:action_name]} #{data[:entity_name]}"
       event = build_event(name, :entity_change, data)
-      @logger.debug("Track change: " + JSON.pretty_generate(event))
+      @logger.debug { "Track change: #{event.to_json}" }
       event
     end
 
@@ -42,7 +42,7 @@ module Flu
       raise ArgumentError, "data must be a hash"           if !data.is_a?(Hash)
       raise ArgumentError, "name must not be nil or empty" if name.nil? || name.empty?
       event = build_event(name.to_s, :manual, data)
-      @logger.debug("Track manual: " + JSON.pretty_generate(event))
+      @logger.debug { "Track manual: #{event.to_json}" }
       event
     end
 

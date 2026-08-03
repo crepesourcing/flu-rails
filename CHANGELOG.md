@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Changed**
 
+* `EventFactory` no longer serializes an event to JSON before logging it, unless debug logging is actually enabled.
 * Publishing through a publisher that holds no connection now raises `Flu::NotConnectedError`, naming what to call and the option that turns the automatic connection off, instead of a `NoMethodError` on `nil`.
 * A `request` event is now built once every other `after_action` has run, so its `duration` covers them too. An action that raises still publishes nothing.
 * `EventPublisher` opens one Bunny channel per thread instead of sharing a single one.
@@ -31,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Tests**
 
+* Cover that building an entity change, request or manual event does not serialize it when the logger's level is above `DEBUG`.
 * Cover `Event#to_json` without `ActionDispatch` loaded, through a subprocess that never requires actionpack -- the main suite always has it loaded, so this is the only honest way to exercise the guard.
 * Cover which channel a thread publishes on, against a real broker: each thread gets its own, reuses it across publications, and picks up a fresh one after the connection was closed under it.
 * Cover `entity_metadata`, which had no test at all: its lambda is evaluated before the action runs, and its result is cleared afterwards.

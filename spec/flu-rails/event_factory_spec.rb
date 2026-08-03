@@ -405,7 +405,24 @@ RSpec.describe Flu::EventFactory do
     end
   end
 
+  describe "debug logging above the DEBUG level" do
+    let(:configuration) { super().tap { |config| config.logger.level = Logger::INFO } }
 
-  ## TODO test ignored fields and params
+    it "does not serialize an entity change event to build it" do
+      data = { action_name: "create", entity_name: "invoice", changes: { "price" => [4, 6] } }
+      expect_any_instance_of(Flu::Event).to_not receive(:to_json)
+      factory.build_entity_change_event(data)
+    end
 
+    it "does not serialize a request event to build it" do
+      data = { action_name: "create", controller_name: "invoices" }
+      expect_any_instance_of(Flu::Event).to_not receive(:to_json)
+      factory.build_request_event(data)
+    end
+
+    it "does not serialize a manual event to build it" do
+      expect_any_instance_of(Flu::Event).to_not receive(:to_json)
+      factory.build_manual_event("custom event", { a: 1 })
+    end
+  end
 end

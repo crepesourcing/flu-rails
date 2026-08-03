@@ -19,9 +19,9 @@ module Flu
 
     def publish(event, persistent=true)
       routing_key = event.to_routing_key
-      @logger.debug("Publishing event with id '#{event.id}' with routing key: #{routing_key}")
+      @logger.debug { "Publishing event with id '#{event.id}' with routing key: #{routing_key}" }
       exchange.publish(event.to_json, routing_key: routing_key, persistent: persistent)
-      @logger.debug("Event published.")
+      @logger.debug { "Event published." }
     end
 
     def connect
