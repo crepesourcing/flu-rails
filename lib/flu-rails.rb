@@ -90,6 +90,7 @@ module Flu
       config.rejected_user_agents           = []
       config.logger                         = ::Logger.new(STDOUT)
       config.rabbitmq_host                  = "localhost"
+      config.rabbitmq_vhost                 = "/"
       config.rabbitmq_port                  = 5672
       config.rabbitmq_management_scheme     = "http"
       config.rabbitmq_management_port       = 15672

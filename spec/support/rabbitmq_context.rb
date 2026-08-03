@@ -43,6 +43,7 @@ module RabbitmqHelper
       configuration.development_environments   = []
       configuration.rejected_user_agents       = []
       configuration.rabbitmq_host              = HOST
+      configuration.rabbitmq_vhost             = "/"
       configuration.rabbitmq_port              = PORT
       configuration.rabbitmq_user              = USER
       configuration.rabbitmq_password          = PASSWORD

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Fixed**
 
+* `QueueRepository#find_all` no longer lists queues across every vhost on the broker. It called `list_queues` without a vhost, which lists every vhost's queues -- on a broker shared with other applications, that meant every other application's queues too, not just this one's.
 * Sanitize the event name before building the routing key.
 * [Breaking change?] Publish only Flu's own events from `flu_publish_events!`. It called `run_callbacks(:commit)`, which runs every `after_commit` callback registered on the record (including the host application's own (mailers, jobs, cache invalidation)) rather than just the one `track_entity_changes` installs. It now calls `flu_commit_changes` directly, the same way the real `after_commit` callback does.
 * Guard the railtie require on `Rails::Railtie` rather than on `Rails`. Gems such as `rails-html-sanitizer` define an empty `Rails` namespace, which `is_testing_environment?` already accounted for a few lines below -- the railtie require itself did not, and raised `NameError: uninitialized constant Rails::Railtie` in that case.
@@ -18,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Added**
 
+* `rabbitmq_vhost` configuration option (default `"/"`), used by both `EventPublisher`'s AMQP connection and `QueueRepository`'s management API calls, to operate on a vhost other than the default.
 * `Flu::Error`, the base class of every error this gem raises on its own, and `Flu::NotConnectedError`.
 
 **Changed**
@@ -35,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Tests**
 
+* Cover `rabbitmq_vhost` against a real broker: `EventPublisher#connect` fails rather than silently falling back to the default vhost when it points at one that does not exist, and `QueueRepository#find_all` scoped to a dedicated vhost does not see a queue declared on another one -- proving the cross-vhost leak above was real.
+* Cover `duration`, which had no test at all: it is the elapsed wall-clock time since `request_start_time`, and a real controller request emits one that is a small, non-negative `Float`.
 * Cover `Event#to_routing_key`: dots are stripped from the name, spaces are left untouched, a name that would push the routing key past 255 characters is truncated with a warning through `Flu.logger`, and none of this raises when `Flu.logger` was never set. Cover the same against a real broker: a name with dots is delivered under a single routing-key segment, and a 300-character name that used to make Bunny raise is published and delivered instead.
 * Cover that `flu_publish_events!` does not run a host application's own `after_commit` callback, registered on the record's singleton class, exactly the way `run_callbacks(:commit)` used to run it too.
 * Cover loading `flu-rails` with an empty `Rails` namespace defined, through the same kind of subprocess as the `ActionDispatch` example above.

@@ -6,6 +6,7 @@ module Flu
                   :rejected_user_agents,
                   :logger,
                   :rabbitmq_host,
+                  :rabbitmq_vhost,
                   :rabbitmq_management_scheme,
                   :rabbitmq_management_port,
                   :rabbitmq_port,

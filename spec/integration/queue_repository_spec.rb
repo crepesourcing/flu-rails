@@ -27,6 +27,21 @@ RSpec.describe Flu::QueueRepository, :rabbitmq do
     it "should return the queues declared on the broker" do
       expect(repository.find_all.map(&:name)).to include queue.name
     end
+
+    # 'find_all' used to call 'list_queues' with no vhost at all, which lists queues across every
+    # vhost on the broker -- on a broker shared with other applications, that means every other
+    # application's queues too, not just this one's.
+    context "when a dedicated vhost is configured" do
+      let(:vhost_name)     { RabbitmqHelper.unique_name("vhost") }
+      let(:configuration)  { RabbitmqHelper.configuration(rabbitmq_vhost: vhost_name) }
+
+      before(:each) { RabbitmqHelper.management_client.create_vhost(vhost_name) }
+      after(:each)  { RabbitmqHelper.management_client.delete_vhost(vhost_name) }
+
+      it "should not see queues declared on another vhost" do
+        expect(repository.find_all.map(&:name)).to_not include queue.name
+      end
+    end
   end
 
   describe "#find_queue" do

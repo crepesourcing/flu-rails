@@ -79,6 +79,11 @@ RSpec.describe Flu::ActionControllerExtender do
           expect(data["requestId"]).to_not be_nil
         end
 
+        it "should emit a small, non-negative duration" do
+          duration = published_controller_events.first.data["duration"]
+          expect(duration).to be_a(Float).and be_between(0, 1)
+        end
+
         it "should evaluate the user metadata lambda in the controller's context" do
           expect(published_controller_events.first.data["userMetadata"]).to eq({
             "currentUserId" => nil,

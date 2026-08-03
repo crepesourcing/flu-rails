@@ -84,6 +84,17 @@ RSpec.describe Flu::EventFactory do
         expect(data[:params]["user"]).to eq({ "email" => "hanzo@example.com", "password" => "[FILTERED]" })
       end
     end
+
+    context "duration" do
+      let(:params) { ActionController::Parameters.new("controller" => "orders", "action" => "create") }
+
+      it "is the elapsed wall-clock time since 'request_start_time'" do
+        start_time = Time.zone.now
+        sleep 0.05
+        data = factory.create_data_from_request("req-1", params, request, response, start_time, [])
+        expect(data[:duration]).to be_within(0.05).of(0.05)
+      end
+    end
   end
 
   describe "#build_entity_change_event" do

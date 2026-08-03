@@ -11,23 +11,23 @@ module Flu
     end
 
     def find_all
-      @management_client.list_queues
+      @management_client.list_queues(@configuration.rabbitmq_vhost)
     end
 
     def find_queue(name)
-      @management_client.queue_info("/", name)
+      @management_client.queue_info(@configuration.rabbitmq_vhost, name)
     end
 
     def find_bindings_for_queue(name)
-      @management_client.list_queue_bindings("/", name)
+      @management_client.list_queue_bindings(@configuration.rabbitmq_vhost, name)
     end
 
     def purge_queue(name)
-      @management_client.purge_queue("/", name)
+      @management_client.purge_queue(@configuration.rabbitmq_vhost, name)
     end
 
     def delete_queue(name)
-      @management_client.delete_queue("/", name)
+      @management_client.delete_queue(@configuration.rabbitmq_vhost, name)
     end
 
     private

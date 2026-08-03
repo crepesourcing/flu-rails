@@ -81,6 +81,7 @@ module Flu
     def connect_to_exchange
       options = {
         host:     @configuration.rabbitmq_host,
+        vhost:    @configuration.rabbitmq_vhost,
         port:     @configuration.rabbitmq_port&.to_i,
         user:     @configuration.rabbitmq_user,
         password: @configuration.rabbitmq_password,

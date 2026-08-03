@@ -138,6 +138,24 @@ RSpec.describe Flu::EventPublisher, :rabbitmq do
       end
     end
 
+    context "when 'rabbitmq_vhost' points at a vhost that does not exist" do
+      # 'automatically_recover' is off for the same reason 'RabbitmqHelper.connection_options'
+      # turns it off for the consumer connection: the broker refuses the vhost by closing the
+      # connection right after opening it, and automatic recovery would otherwise keep retrying
+      # the same doomed vhost forever in a background thread instead of letting this example fail.
+      let(:configuration) do
+        RabbitmqHelper.configuration(rabbitmq_vhost: "flu-rails-spec-no-such-vhost",
+                                     bunny_options:  { automatically_recover: false })
+      end
+
+      # The refusal is not a synchronous error from 'Bunny::Session#start': the broker closes the
+      # connection right after opening it, so this only surfaces once something tries to use it,
+      # here declaring the exchange's channel.
+      it "should fail rather than silently falling back to the default vhost" do
+        expect { publisher.connect }.to raise_error(StandardError)
+      end
+    end
+
     context "when the broker is not reachable yet" do
       let(:configuration) { RabbitmqHelper.configuration(logger: logger) }
       let(:logger)        { instance_double(Logger, debug: nil, warn: nil) }
