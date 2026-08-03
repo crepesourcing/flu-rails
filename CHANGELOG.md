@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Fixed**
 
+* Sanitize the event name before building the routing key.
 * [Breaking change?] Publish only Flu's own events from `flu_publish_events!`. It called `run_callbacks(:commit)`, which runs every `after_commit` callback registered on the record (including the host application's own (mailers, jobs, cache invalidation)) rather than just the one `track_entity_changes` installs. It now calls `flu_commit_changes` directly, the same way the real `after_commit` callback does.
 * Guard the railtie require on `Rails::Railtie` rather than on `Rails`. Gems such as `rails-html-sanitizer` define an empty `Rails` namespace, which `is_testing_environment?` already accounted for a few lines below -- the railtie require itself did not, and raised `NameError: uninitialized constant Rails::Railtie` in that case.
 * Stop assuming `ActionDispatch` is loaded when serializing an event. `Event#to_json` referenced `ActionDispatch::Http::UploadedFile` unconditionally to special-case uploaded files, on every value it serialized. A plain script that builds and serializes an event without the rest of Rails loaded raised `NameError: uninitialized constant Flu::Event::ActionDispatch` on the very first field.
@@ -34,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Tests**
 
+* Cover `Event#to_routing_key`: dots are stripped from the name, spaces are left untouched, a name that would push the routing key past 255 characters is truncated with a warning through `Flu.logger`, and none of this raises when `Flu.logger` was never set. Cover the same against a real broker: a name with dots is delivered under a single routing-key segment, and a 300-character name that used to make Bunny raise is published and delivered instead.
 * Cover that `flu_publish_events!` does not run a host application's own `after_commit` callback, registered on the record's singleton class, exactly the way `run_callbacks(:commit)` used to run it too.
 * Cover loading `flu-rails` with an empty `Rails` namespace defined, through the same kind of subprocess as the `ActionDispatch` example above.
 * Cover that building an entity change, request or manual event does not serialize it when the logger's level is above `DEBUG`.

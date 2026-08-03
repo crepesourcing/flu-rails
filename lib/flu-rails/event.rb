@@ -24,8 +24,11 @@ module Flu
       @data = data || {}
     end
 
+    ROUTING_KEY_MAX_LENGTH = 255
+
     def to_routing_key
-      "#{@meta[:status]}.#{@meta[:emitter]}.#{@meta[:kind]}.#{@meta[:name]}"
+      prefix = "#{@meta[:status]}.#{@meta[:emitter]}.#{@meta[:kind]}."
+      "#{prefix}#{routing_key_name(prefix.length)}"
     end
 
     def to_json(options=nil)
@@ -68,6 +71,16 @@ module Flu
     end
 
     private
+
+    def routing_key_name(prefix_length)
+      name   = @meta[:name].to_s.delete(".")
+      budget = [ROUTING_KEY_MAX_LENGTH - prefix_length, 0].max
+      return name if name.length <= budget
+
+      Flu.logger&.warn("flu-rails: event name '#{@meta[:name]}' was truncated to #{budget} " \
+                        "characters to keep its routing key within Bunny's #{ROUTING_KEY_MAX_LENGTH}-character limit.")
+      name[0, budget]
+    end
 
     def map_complex_object(object)
       if object.is_a?(Array)

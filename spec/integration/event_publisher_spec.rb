@@ -291,6 +291,33 @@ RSpec.describe Flu::EventPublisher, :rabbitmq do
         expect(delivery_info.routing_key).to eq "replayed.ninja_app.entity_change.create ninja"
       end
     end
+
+    context "when the event name would make the routing key too long for AMQP" do
+      let(:event) do
+        Flu::Event.new(SecureRandom.uuid, "ninja_app", :manual, "a" * 300, {})
+      end
+
+      it "should publish it without raising" do
+        expect { publisher.publish(event) }.to_not raise_error
+      end
+
+      it "should deliver it under a routing key the broker accepted" do
+        publisher.publish(event)
+        expect(message_count_on(queue, expected: 1)).to eq 1
+      end
+    end
+
+    context "when the event name contains dots" do
+      let(:event) do
+        Flu::Event.new(SecureRandom.uuid, "ninja_app", :manual, "user.deleted.v2", {})
+      end
+
+      it "should route it as a single name segment, not one per dot" do
+        matching_queue = subscribe_to("new.ninja_app.manual.userdeletedv2")
+        publisher.publish(event)
+        expect(message_count_on(matching_queue, expected: 1)).to eq 1
+      end
+    end
   end
 
   describe "channels" do
