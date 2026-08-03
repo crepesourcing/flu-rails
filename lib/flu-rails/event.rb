@@ -74,7 +74,7 @@ module Flu
         map_array(object)
       elsif object.is_a?(Hash)
         map_hash(object)
-      elsif object.is_a?(ActionDispatch::Http::UploadedFile)
+      elsif defined?(ActionDispatch::Http::UploadedFile) && object.is_a?(ActionDispatch::Http::UploadedFile)
         map_file(object)
       else
         object

@@ -68,4 +68,25 @@ RSpec.describe Flu::Event do
   describe "#to_routing_key" do
 
   end
+
+  describe "#to_json without ActionDispatch loaded" do
+    it "should serialize the event instead of raising NameError" do
+      lib_dir = File.expand_path("../../lib", __dir__)
+      script  = <<~RUBY
+        require "active_support"
+        require "active_support/time"
+        Time.zone = "UTC"
+        require "flu-rails"
+        raise "ActionDispatch got loaded, this example proves nothing" if defined?(ActionDispatch)
+
+        event = Flu::Event.new("1", "app", :manual, "test", { "name" => "Hanzo" })
+        puts event.to_json
+      RUBY
+
+      output = IO.popen(["ruby", "-I", lib_dir, "-e", script], err: [:child, :out], &:read)
+
+      expect($?).to be_success, "subprocess failed:\n#{output}"
+      expect(JSON.parse(output)["data"]).to eq({ "name" => "Hanzo" })
+    end
+  end
 end

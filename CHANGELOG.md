@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Fixed**
 
+* Stop assuming `ActionDispatch` is loaded when serializing an event. `Event#to_json` referenced `ActionDispatch::Http::UploadedFile` unconditionally to special-case uploaded files, on every value it serialized. A plain script that builds and serializes an event without the rest of Rails loaded raised `NameError: uninitialized constant Flu::Event::ActionDispatch` on the very first field.
 * Track Single Table Inheritance subclasses. ActiveRecord hands the callbacks registered by `track_entity_changes` down to subclasses, but the class-level instance variables holding their settings were not inherited, so every save of an STI subclass of a tracked model raised `NoMethodError` on `nil`. `flu_is_tracked`, `flu_user_metadata_lambdas`, `flu_ignored_model_changes` and `flu_overriden_emitter_lambda` are now declared with `class_attribute`, which a subclass inherits until it sets its own value.
 * Always clear the per-request tracking state, even when an action raises. The request id and the entity metadata are stored in thread-local storage and were cleared from an `after_action`, which does not run when the action raises. Since application servers reuse their threads, a failed request left its id behind for the next request served by that same thread, whose entity changes were then attributed to a request that had already died. `track_requests` now installs a single `around_action` that clears both from an `ensure` block.
 
@@ -30,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Tests**
 
+* Cover `Event#to_json` without `ActionDispatch` loaded, through a subprocess that never requires actionpack -- the main suite always has it loaded, so this is the only honest way to exercise the guard.
 * Cover which channel a thread publishes on, against a real broker: each thread gets its own, reuses it across publications, and picks up a fresh one after the connection was closed under it.
 * Cover `entity_metadata`, which had no test at all: its lambda is evaluated before the action runs, and its result is cleared afterwards.
 * Cover what a raising action leaves behind in the thread-local tracking state.
