@@ -466,6 +466,15 @@ RSpec.describe Flu::ActiveRecordExtender do
           "new.ninja_app.manual.event"
         ]
       end
+
+     it "does not run the host application's own 'after_commit' callbacks" do
+        host_callback_ran = false
+        daddy_ninja.singleton_class.after_commit { host_callback_ran = true }
+
+        daddy_ninja.flu_publish_events!
+
+        expect(host_callback_ran).to be false
+      end
     end
 
     context "when saving ninjas in a transaction" do

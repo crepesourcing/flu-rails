@@ -38,8 +38,15 @@ module Flu
           @flu_changes ||= []
         end
 
-        def flu_publish_events!
-          run_callbacks(:commit)
+        # Defined with 'define_method' rather than 'def', for the same reason as the tracking
+        # helpers in 'ActionControllerExtender#extend_controllers': a bare 'def' opens a new scope
+        # and would not close over 'event_factory' and 'event_publisher'. 
+        #
+        # Without them, publishing manually had no way to call 'flu_commit_changes' directly,
+        # and used 'run_callbacks(:commit)' instead, which runs *every* 'after_commit' callback on the record, 
+        # including the hoste application's own (mailers, jobs, cache invalidation), not just Flu's.
+        define_method(:flu_publish_events!) do
+          flu_commit_changes(event_factory, event_publisher)
         end
 
         def flu_add_manual_event(name, data)
