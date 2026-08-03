@@ -13,7 +13,7 @@ require_relative "flu-rails/core_ext"
 require_relative "flu-rails/event_publisher"
 require_relative "flu-rails/util"
 require_relative "flu-rails/dummy/in_memory_event_publisher"
-require_relative "flu-rails/railtie" if defined?(Rails)
+require_relative "flu-rails/railtie" if defined?(Rails::Railtie)
 
 module Flu
   def self.configure

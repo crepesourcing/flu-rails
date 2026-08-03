@@ -86,4 +86,27 @@ RSpec.describe Flu do
       end
     end
   end
+
+  # 'flu-rails.rb' decides whether to load the railtie once, when the file is first required --
+  # by then, this suite has already loaded it and 'Rails' is fully defined, so nothing here can
+  # exercise that line. Only a subprocess that defines the same empty 'Rails' namespace *before*
+  # requiring 'flu-rails' can.
+  describe "loading the railtie" do
+    it "does not blow up when 'Rails' exists but 'Rails::Railtie' does not" do
+      lib_dir = File.expand_path("../../lib", __dir__)
+      script  = <<~RUBY
+        module Rails; end
+        require "active_support"
+        require "active_support/time"
+        Time.zone = "UTC"
+        require "flu-rails"
+        puts "ok"
+      RUBY
+
+      output = IO.popen(["ruby", "-I", lib_dir, "-e", script], err: [:child, :out], &:read)
+
+      expect($?).to be_success, "subprocess failed:\n#{output}"
+      expect(output).to include "ok"
+    end
+  end
 end
