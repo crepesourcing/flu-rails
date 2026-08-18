@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [Unreleased]
+
+**Fixed**
+
+* Reconnect to RabbitMQ after a fork. A forked child inherited the parent's `Bunny` connection, whose socket it shares with the parent and whose I/O threads do not survive the fork, so a worker of an application server that preloads the application published its events onto the connection the master was speaking on, which the broker ended for both. `EventPublisher` now remembers the pid it connected under: `connected?` is false in a child, publishing from one opens a connection of its own, channels are cached per process as well as per thread so the thread that called `fork` cannot go on publishing on the one it cached in the parent, and `disconnect` drops an inherited connection rather than closing it, since closing it would tear down the parent's.
+* Serialize `connect` and `disconnect` on a mutex. Two threads reaching `connect` together both saw `connected?` as false and both opened a connection, the second overwriting the first, which stayed open and unreachable.
+
 ### [8.0.5] - 2026-08-03
 
 **Fixed**

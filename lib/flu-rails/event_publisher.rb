@@ -14,7 +14,7 @@ module Flu
     def initialize(configuration)
       @logger        = configuration.logger
       @configuration = configuration
-      @exchange_key  = :"flu_exchange_#{object_id}" # Channels are cached per thread
+      @mutex         = Mutex.new
     end
 
     def publish(event, persistent=true)
@@ -25,37 +25,51 @@ module Flu
     end
 
     def connect
-      unless connected?
-        connected = false
-        while !connected
-          begin
-            connect_to_exchange
-            connected = true
-          rescue Bunny::TCPConnectionFailedForAllHosts
-            @logger.warn("RabbitMQ connection failed, try again in 1 second.")
-            sleep 1
+      @mutex.synchronize do
+        unless connected?
+          connected = false
+          while !connected
+            begin
+              connect_to_exchange
+              connected = true
+            rescue Bunny::TCPConnectionFailedForAllHosts
+              @logger.warn("RabbitMQ connection failed, try again in 1 second.")
+              sleep 1
+            end
           end
         end
       end
     end
 
     def connected?
-      !@connection.nil? && @connection.open?
+      !forked? && !@connection.nil? && @connection.open?
     end
 
     # Closing the connection closes every channel opened on it, and stops the heartbeat and
     # recovery threads Bunny runs alongside it.
     # The guard is on the connection alone: a connection that was opened before the exchange could
     # be declared still has to be closed.
+    # An inherited connection is dropped rather than closed: its socket is the parent's.
     def disconnect
-      if !@connection.nil? && @connection.open?
-        @connection.close
+      @mutex.synchronize do
+        @connection.close if connected?
+        @connection = nil
+        @pid        = nil
+        Thread.current[exchange_key] = nil
       end
-      @connection = nil
-      Thread.current[@exchange_key] = nil
     end
 
     private
+
+    # A child inherits the parent's socket but none of the threads Bunny runs on it.
+    def forked?
+      !@pid.nil? && @pid != Process.pid
+    end
+
+    # Per process too: a channel cached before the fork still reports itself open in the child.
+    def exchange_key
+      :"flu_exchange_#{object_id}_#{Process.pid}"
+    end
 
     # One channel per thread rather than one for the whole publisher. 
     # Bunny serialises every publication on the channel's own mutex.
@@ -66,10 +80,11 @@ module Flu
     # Only the absence of a connection is reported here. A connection that exists but is closed or
     # recovering is Bunny's story to tell, and its own error says more about it than this one could.
     def exchange
-      cached = Thread.current[@exchange_key]
+      connect if forked?
+      cached = Thread.current[exchange_key]
       return cached if cached && cached.channel.open?
       raise NotConnectedError, NOT_CONNECTED_MESSAGE if @connection.nil?
-      Thread.current[@exchange_key] = declare_exchange
+      Thread.current[exchange_key] = declare_exchange
     end
 
     def declare_exchange
@@ -90,7 +105,8 @@ module Flu
 
       @connection = Bunny.new(options)
       @connection.start
-      Thread.current[@exchange_key] = declare_exchange
+      @pid = Process.pid
+      Thread.current[exchange_key] = declare_exchange
     end
   end
 end

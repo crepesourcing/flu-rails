@@ -1,4 +1,6 @@
+require "json"
 require "securerandom"
+require "timeout"
 
 RSpec.describe Flu::EventPublisher, :rabbitmq do
   include_context "a rabbitmq broker"
@@ -404,6 +406,139 @@ RSpec.describe Flu::EventPublisher, :rabbitmq do
       expect(before_disconnect.channel).to_not be_open
       expect(after_reconnect).to_not be before_disconnect
       expect(after_reconnect.channel).to be_open
+    end
+  end
+
+  # An application server that preloads the application connects in the master and forks its workers
+  # afterwards: every one of them inherits the parent's socket, and none of Bunny's threads on it.
+  describe "forking" do
+    let(:child_event) do
+      Flu::Event.new(SecureRandom.uuid, "ninja_app", :manual, "from the child", { "name" => "Hanzo" })
+    end
+
+    # What a forked worker inherits: a connection, and a channel cached on the thread that forks.
+    before(:each) do
+      publisher.connect
+      publisher.publish(event)
+    end
+
+    # Runs the block in a forked child and returns what it reports. Every wait is bounded on both
+    # sides: a child that cannot make progress must fail the example rather than hang the suite.
+    def in_child_process
+      reader, writer = IO.pipe
+
+      child = fork do
+        reader.close
+        report = begin
+          Timeout.timeout(20) { yield }
+        rescue StandardError => error
+          { "error" => "#{error.class}: #{error.message}" }
+        end
+        writer.write(JSON.dump(report))
+        writer.close
+        exit!(0) # No at_exit handler of the parent's suite belongs to this process
+      end
+
+      writer.close
+      raise "the child process never answered" if IO.select([reader], nil, nil, 30).nil?
+      answer = reader.read
+      reader.close
+      Process.wait(child)
+      raise "the child process died without answering" if answer.empty?
+      JSON.parse(answer)
+    end
+
+    def child_publishing
+      in_child_process do
+        publisher.publish(child_event)
+        { "connection_id" => publisher.instance_variable_get(:@connection).object_id }
+      end
+    end
+
+    # 'object_id' is comparable across the fork: the child's heap is a copy of the parent's.
+    def publishes_on_the_connection_it_holds?
+      publisher.send(:exchange).channel.connection.equal?(publisher.instance_variable_get(:@connection))
+    end
+
+    it "should open a connection of its own in the child" do
+      inherited_connection_id = publisher.instance_variable_get(:@connection).object_id
+
+      report = child_publishing
+
+      expect(report["error"]).to be_nil
+      expect(report["connection_id"]).to_not eq inherited_connection_id
+    end
+
+    it "should deliver what the child publishes" do
+      queue = subscribe_to("new.ninja_app.manual.#")
+      child_publishing
+      expect(message_count_on(queue, expected: 1)).to eq 1
+    end
+
+    it "should leave the parent publishing on the connection it had" do
+      queue                = subscribe_to("new.ninja_app.entity_change.#")
+      inherited_connection = publisher.instance_variable_get(:@connection)
+
+      child_publishing
+      publisher.publish(event)
+
+      expect(publisher.instance_variable_get(:@connection)).to be inherited_connection
+      expect(inherited_connection).to be_open
+      expect(message_count_on(queue, expected: 1)).to eq 1
+    end
+
+    # Closing a 'Bunny::Session' sends the closing handshake over the socket shared with the parent.
+    it "should not close the parent's connection when the child disconnects" do
+      queue = subscribe_to
+
+      report = in_child_process do
+        publisher.disconnect
+        {}
+      end
+      publisher.publish(event)
+
+      expect(report["error"]).to be_nil
+      expect(publisher.instance_variable_get(:@connection)).to be_open
+      expect(message_count_on(queue, expected: 1)).to eq 1
+    end
+
+    # The pid is recorded once for the publisher, but channels are cached per thread: a worker thread
+    # reconnecting first makes the fork look handled, while this one still holds the parent's channel.
+    it "should not publish on the channel the forking thread cached in the parent" do
+      report = in_child_process do
+        Thread.new { publisher.publish(child_event) }.join
+        publisher.publish(child_event)
+        { "publishes_on_child" => publishes_on_the_connection_it_holds? }
+      end
+
+      expect(report["error"]).to be_nil
+      expect(report["publishes_on_child"]).to be true
+    end
+
+    # Ruby unlocks a mutex the fork froze locked, its holder being gone. This says so should the
+    # publisher ever lock on something Ruby does not release.
+    it "should connect in a child forked while another thread held the connection lock" do
+      held     = Queue.new
+      released = Queue.new
+      holder   = Thread.new do
+        publisher.instance_variable_get(:@mutex).synchronize do
+          held.push(:held)
+          released.pop
+        end
+      end
+      raise "the lock was never taken" if held.pop(timeout: 10).nil?
+
+      report = in_child_process do
+        publisher.connect
+        publisher.publish(child_event)
+        { "connected" => publisher.connected? }
+      end
+
+      released.push(:go)
+      holder.join(10)
+
+      expect(report["error"]).to be_nil
+      expect(report["connected"]).to be true
     end
   end
 end
