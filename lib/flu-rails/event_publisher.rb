@@ -10,6 +10,9 @@ module Flu
     NOT_CONNECTED_MESSAGE = "no connection to RabbitMQ: 'connect' was never called, or " \
                             "'disconnect' was. The railtie calls it at boot unless " \
                             "'auto_connect_to_exchange' is false."
+    CONNECTION_LOST_MESSAGE = "the connection to RabbitMQ is down. Bunny reopens it in the " \
+                              "background when 'automatically_recover' is on, and publishing " \
+                              "works again once it has."
 
     def initialize(configuration)
       @logger        = configuration.logger
@@ -22,6 +25,8 @@ module Flu
       @logger.debug { "Publishing event with id '#{event.id}' with routing key: #{routing_key}" }
       exchange.publish(event.to_json, routing_key: routing_key, persistent: persistent)
       @logger.debug { "Event published." }
+    rescue Bunny::ConnectionClosedError
+      raise ConnectionLostError, CONNECTION_LOST_MESSAGE
     end
 
     def connect
@@ -77,13 +82,14 @@ module Flu
     # No bookkeeping of the channels handed out is needed. 
     # Closing the connection closes all of them, so a thread holding a closed channel simply opens a new one on its next publication:
     # 'disconnect' and a reconnection are both covered without reaching into other threads.
-    # Only the absence of a connection is reported here. A connection that exists but is closed or
-    # recovering is Bunny's story to tell, and its own error says more about it than this one could.
+    # A connection that is down is reported as such rather than left to 'create_channel', which
+    # raises a bare 'RuntimeError' the caller has no way to tell from any other.
     def exchange
       connect if forked?
       cached = Thread.current[exchange_key]
       return cached if cached && cached.channel.open?
       raise NotConnectedError, NOT_CONNECTED_MESSAGE if @connection.nil?
+      raise ConnectionLostError, CONNECTION_LOST_MESSAGE unless @connection.open?
       Thread.current[exchange_key] = declare_exchange
     end
 

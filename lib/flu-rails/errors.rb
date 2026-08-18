@@ -6,4 +6,7 @@ module Flu
 
   class NotConnectedError < Error
   end
+
+  class ConnectionLostError < Error
+  end
 end

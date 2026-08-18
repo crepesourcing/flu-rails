@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Reconnect to RabbitMQ after a fork. A forked child inherited the parent's `Bunny` connection, whose socket it shares with the parent and whose I/O threads do not survive the fork, so a worker of an application server that preloads the application published its events onto the connection the master was speaking on, which the broker ended for both. `EventPublisher` now remembers the pid it connected under: `connected?` is false in a child, publishing from one opens a connection of its own, channels are cached per process as well as per thread so the thread that called `fork` cannot go on publishing on the one it cached in the parent, and `disconnect` drops an inherited connection rather than closing it, since closing it would tear down the parent's.
 * Serialize `connect` and `disconnect` on a mutex. Two threads reaching `connect` together both saw `connected?` as false and both opened a connection, the second overwriting the first, which stayed open and unreachable.
 
+**Added**
+
+* `Flu::ConnectionLostError`, raised by `publish` while the connection to RabbitMQ is down.
+
+**Changed**
+
+* Publishing while the connection is down now raises `Flu::ConnectionLostError` instead of the bare `RuntimeError` `Bunny::Session#create_channel` raises ("this connection is not open"), which nothing could tell apart from any other `RuntimeError`. Publishing during an outage has never worked -- 8.0.4 raised `Bunny::ChannelAlreadyClosed` in the same window -- and it still fails immediately rather than waiting: Bunny reopens the connection in the background, and publishing works again once it has.
+
 ### [8.0.5] - 2026-08-03
 
 **Fixed**
