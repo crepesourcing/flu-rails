@@ -352,29 +352,7 @@ RSpec.describe Flu::EventPublisher, :rabbitmq do
     before(:each) do
       publisher.connect
       publisher.publish(event)
-      close_the_publisher_connection
-    end
-
-    def close_the_publisher_connection(timeout: 15)
-      deadline = Time.now + timeout
-      connection = nil
-      while connection.nil? && Time.now < deadline
-        connection = management_client.list_connections.find do |candidate|
-          candidate.client_properties["connection_name"] == connection_name
-        end
-        sleep 0.1 if connection.nil?
-      end
-      raise "the publisher's connection never showed up on the broker" if connection.nil?
-
-      management_client.close_connection(connection.name)
-      sleep 0.05 while publisher.connected? && Time.now < deadline
-      raise "Bunny never noticed the closed connection" if publisher.connected?
-    end
-
-    def wait_for_recovery(timeout: 30)
-      deadline = Time.now + timeout
-      sleep 0.1 while !publisher.connected? && Time.now < deadline
-      raise "the connection never recovered" unless publisher.connected?
+      close_connection_from_the_broker(publisher, connection_name)
     end
 
     # Each example pays RabbitMQ a few seconds to list the connection it is about to close, so they
@@ -385,7 +363,7 @@ RSpec.describe Flu::EventPublisher, :rabbitmq do
 
     it "should publish again once Bunny has recovered" do
       queue = subscribe_to
-      wait_for_recovery
+      wait_for_recovery(publisher)
       publisher.publish(event)
       expect(message_count_on(queue, expected: 1)).to eq 1
     end

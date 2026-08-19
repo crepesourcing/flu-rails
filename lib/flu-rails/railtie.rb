@@ -15,5 +15,11 @@ module Flu
       Flu.init
       Flu.start
     end
+
+    # The end of a request or of a job, which runs even when it is an exception that ended it, is the
+    # last chance to publish what the broker could not take a moment earlier.
+    initializer "flu.retry_pending_publications" do |application|
+      application.executor.to_complete { Flu.retry_pending_publications }
+    end
   end
 end

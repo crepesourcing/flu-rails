@@ -61,6 +61,38 @@ RSpec.describe "tracking", :rabbitmq do
     end
   end
 
+  # The window that used to cost events: the broker closed the connection, Bunny takes
+  # 'network_recovery_interval' to open a new one, and a transaction committing in between has
+  # nowhere to publish what it recorded.
+  describe "an ActiveRecord change committed while the connection is down" do
+    let(:connection_name) { RabbitmqHelper.unique_name("connection") }
+    let(:configuration) do
+      RabbitmqHelper.configuration(bunny_options: { connection_name:           connection_name,
+                                                    network_recovery_interval: 3 })
+    end
+
+    let(:dynasty) { Dynasty.create!(name: "Tokugawa", year: 1603) }
+
+    before(:each) do
+      allow(ActiveRecordTestSetup.event_publisher).to receive(:connected?) { publisher.connected? }
+      dynasty # Saved while the broker is still there: an untracked model, and no event of its own
+      close_connection_from_the_broker(publisher, connection_name)
+      Ninja.create!(name: "Hanzo", dynasty: dynasty, color: "black", height: 180, weight: 70)
+    end
+
+    it "should keep the event rather than lose it" do
+      expect(Flu::PendingPublications.current.size).to eq 1
+    end
+
+    it "should reach the broker once the connection is back" do
+      wait_for_recovery(publisher)
+      Flu.retry_pending_publications
+
+      expect(message_count_on(queue, expected: 1)).to eq 1
+      expect(Flu::PendingPublications.current.size).to eq 0
+    end
+  end
+
   describe "an ActiveRecord change on a model overriding the emitter" do
     before(:each) { Padawan.create!(name: "Ahsoka") }
 

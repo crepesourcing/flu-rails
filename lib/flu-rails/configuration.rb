@@ -18,6 +18,8 @@ module Flu
                   :default_ignored_model_changes,
                   :default_ignored_request_params,
                   :application_name,
-                  :bunny_options
+                  :bunny_options,
+                  :on_publication_failure,
+                  :max_pending_events
   end
 end

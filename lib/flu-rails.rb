@@ -10,6 +10,8 @@ require_relative "flu-rails/event_factory"
 require_relative "flu-rails/queue_repository"
 require_relative "flu-rails/configuration"
 require_relative "flu-rails/core_ext"
+require_relative "flu-rails/transaction_buffer"
+require_relative "flu-rails/pending_publications"
 require_relative "flu-rails/event_publisher"
 require_relative "flu-rails/util"
 require_relative "flu-rails/dummy/in_memory_event_publisher"
@@ -34,6 +36,36 @@ module Flu
 
   def self.event_publisher
     @event_publisher
+  end
+
+  # Keeps an event whose publication failed for another attempt, a broker being reachable again
+  # within seconds. One that could not even be built is reported at once instead.
+  def self.publication_failed(event, error, event_publisher)
+    if event.nil?
+      report_publication_failure(event, error) 
+    else
+      PendingPublications.current.push(event, event_publisher, error)
+    end
+  end
+
+  # Publishes again what the last attempt could not. Never raises: its callers are a transaction that
+  # has committed and the end of a request, neither of which is a place to fail.
+  def self.retry_pending_publications
+    PendingPublications.current.drain
+  rescue StandardError => error
+    config.logger&.error("Flu could not retry the publications it had kept: #{error.class}: #{error.message}")
+  end
+
+  # @param event [Flu::Event, nil] nil when the event could not even be built.
+  def self.report_publication_failure(event, error)
+    handler = config.on_publication_failure
+    if handler.nil?
+      subject = event.nil? ? "an event it could not build" : "the event '#{event.id}' ('#{event.name}')"
+      config.logger&.error("Flu could not publish #{subject}: #{error.class}: #{error.message}. " \
+                           "The event is lost unless 'on_publication_failure' is configured to keep it.")
+    else
+      handler.call(event, error) 
+    end
   end
 
   def self.init
@@ -103,6 +135,8 @@ module Flu
       config.default_ignored_request_params = [:password, :password_confirmation, :controller, :action]
       config.application_name               = nil
       config.bunny_options                  = {}
+      config.on_publication_failure         = nil
+      config.max_pending_events             = 1000
     end
   end
 

@@ -130,6 +130,30 @@ RSpec.shared_context "a rabbitmq broker" do
     queue.message_count
   end
 
+  # Closes a publisher's connection from the broker's side, and waits until Bunny has noticed. The
+  # publisher is left recovering, which is the window an event committed right then falls into.
+  def close_connection_from_the_broker(publisher, connection_name, timeout: 20)
+    deadline   = Time.now + timeout
+    connection = nil
+    while connection.nil? && Time.now < deadline
+      connection = management_client.list_connections.find do |candidate|
+        candidate.client_properties["connection_name"] == connection_name
+      end
+      sleep 0.1 if connection.nil?
+    end
+    raise "the publisher's connection never showed up on the broker" if connection.nil?
+
+    management_client.close_connection(connection.name)
+    sleep 0.05 while publisher.connected? && Time.now < deadline
+    raise "Bunny never noticed the closed connection" if publisher.connected?
+  end
+
+  def wait_for_recovery(publisher, timeout: 30)
+    deadline = Time.now + timeout
+    sleep 0.1 while !publisher.connected? && Time.now < deadline
+    raise "the connection never recovered" unless publisher.connected?
+  end
+
   def declared_queues
     @declared_queues ||= []
   end

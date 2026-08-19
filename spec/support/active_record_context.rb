@@ -130,6 +130,7 @@ RSpec.shared_context "active records defined", :shared_context => :metadata do
 
   after(:each) do
     @event_publisher.clear
+    Thread.current[:flu_pending_publications] = nil # What one example could not publish is not the next one's
     ActiveRecord::Base.connection.execute("DELETE FROM ninjas")
     ActiveRecord::Base.connection.execute("DELETE FROM dynasties")
     ActiveRecord::Base.connection.execute("DELETE FROM weapons")

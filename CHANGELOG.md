@@ -9,16 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Fixed**
 
-* Reconnect to RabbitMQ after a fork. A forked child inherited the parent's `Bunny` connection, whose socket it shares with the parent and whose I/O threads do not survive the fork, so a worker of an application server that preloads the application published its events onto the connection the master was speaking on, which the broker ended for both. `EventPublisher` now remembers the pid it connected under: `connected?` is false in a child, publishing from one opens a connection of its own, channels are cached per process as well as per thread so the thread that called `fork` cannot go on publishing on the one it cached in the parent, and `disconnect` drops an inherited connection rather than closing it, since closing it would tear down the parent's.
-* Serialize `connect` and `disconnect` on a mutex. Two threads reaching `connect` together both saw `connected?` as false and both opened a connection, the second overwriting the first, which stayed open and unreachable.
+* Publish the events of a transaction from its commit rather than from each record's `after_commit`, which used to lose events two separate ways: Rails runs the transactional callbacks of a row on one single instance of it and skips the others (which one it picks is what `run_commit_callbacks_on_first_saved_instances_in_transaction` decides, and neither value was safe), and it skips every callback still queued as soon as one of them raises. Events now go out from the commit itself, which nothing can skip, once per recorded change and in the order the records were saved. A non-joinable transaction, such as the one `use_transactional_tests` wraps an example in, is never waited on, so a test suite sees what production does.
+* Keep an event whose publication failed for another attempt rather than giving up on it there and then. It waits in memory, per thread, up to `max_pending_events`, and is published by the next transaction to commit on that thread or at the end of the request or the job, whichever comes first. Nothing is attempted while the publisher reports itself unreachable, and an event still refused after three attempts, or pushed out of a full buffer, is handed to `on_publication_failure`.
+* Build and publish every change on its own, so an event that cannot be built or cannot reach the broker no longer costs the events queued behind it. A failed publication does not fail the transaction it belongs to either -- it has already committed by then.
+* Reconnect to RabbitMQ after a fork. A forked child inherited the parent's `Bunny` connection and published on it, which the broker then ended for both. `EventPublisher` now remembers the pid it connected under, caches channels per process as well as per thread, and drops an inherited connection instead of closing it.
+* Serialize `connect` and `disconnect` on a mutex. Two threads reaching `connect` together both opened a connection, the second overwriting the first, which stayed open and unreachable.
 
 **Added**
 
 * `Flu::ConnectionLostError`, raised by `publish` while the connection to RabbitMQ is down.
+* `on_publication_failure`, called with the event and the error when an event cannot be published, so that an application can keep it rather than read about it in the logs. The event is `nil` when it could not even be built.
+* `max_pending_events` (default `1000`), how many events a thread keeps waiting for the broker to be reachable again before the oldest are handed to `on_publication_failure`.
 
 **Changed**
 
-* Publishing while the connection is down now raises `Flu::ConnectionLostError` instead of the bare `RuntimeError` `Bunny::Session#create_channel` raises ("this connection is not open"), which nothing could tell apart from any other `RuntimeError`. Publishing during an outage has never worked -- 8.0.4 raised `Bunny::ChannelAlreadyClosed` in the same window -- and it still fails immediately rather than waiting: Bunny reopens the connection in the background, and publishing works again once it has.
+* Publishing while the connection is down now raises `Flu::ConnectionLostError` instead of the bare `RuntimeError` `Bunny::Session#create_channel` raises ("this connection is not open"), which nothing could tell apart from any other `RuntimeError`. It still fails immediately rather than waiting: Bunny reopens the connection in the background, and publishing works again once it has.
 
 ### [8.0.5] - 2026-08-03
 
