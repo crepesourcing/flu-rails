@@ -23,7 +23,14 @@ RSpec.describe Flu::EventPublisher do
   let(:channels) { [] }
 
   def open_session
-    session = instance_double(Bunny::Session, start: nil, open?: true, close: nil)
+    session = instance_double(Bunny::Session,
+                              start:                            nil,
+                              open?:                            true,
+                              close:                            nil,
+                              status:                           :open,
+                              closed?:                          false,
+                              automatically_recover?:           true,
+                              recovering_from_network_failure?: false)
     allow(session).to receive(:create_channel) do
       # bunny-3.1.0 session.rb:393, and the whole reason a down connection has to be caught earlier
       raise RuntimeError, "this connection is not open." unless session.open?
@@ -43,7 +50,31 @@ RSpec.describe Flu::EventPublisher do
   # What Bunny does to a connection it lost: it closes the channels and reopens everything later.
   def lose_the_connection
     allow(sessions.last).to receive(:open?).and_return(false)
+    allow(sessions.last).to receive(:status).and_return(:disconnected)
+    allow(sessions.last).to receive(:recovering_from_network_failure?).and_return(true)
     channels.each { |channel| allow(channel).to receive(:open?).and_return(false) }
+  end
+
+  # What Bunny leaves behind once it has run out of recovery attempts: a closed session it will
+  # never reopen, which is then this publisher's to reopen.
+  def abandon_the_connection
+    lose_the_connection
+    allow(sessions.last).to receive(:recovering_from_network_failure?).and_return(false)
+    allow(sessions.last).to receive(:closed?).and_return(true)
+    allow(sessions.last).to receive(:status).and_return(:closed)
+  end
+
+  # A session Bunny built but could not start: 'Bunny.new' answers before a single packet is sent.
+  def refusing_session
+    session = instance_double(Bunny::Session,
+                              open?:                            false,
+                              status:                           :not_connected,
+                              closed?:                          false,
+                              automatically_recover?:           true,
+                              recovering_from_network_failure?: false)
+    allow(session).to receive(:start).and_raise(Bunny::TCPConnectionFailedForAllHosts)
+    sessions.push(session)
+    session
   end
 
   # The pid is all the publisher has to tell a child from the process that connected.
@@ -92,6 +123,80 @@ RSpec.describe Flu::EventPublisher do
     it "should not try to open a channel on it" do
       expect(sessions.last).to_not receive(:create_channel)
       expect { publisher.publish(event) }.to raise_error(Flu::ConnectionLostError)
+    end
+  end
+
+  # Bunny reopens a connection only for as long as it is recovering it. Once it has run out of
+  # recovery attempts, the connection it leaves behind is closed for good, and the publisher was the
+  # only one left to reopen it -- which it did not, so every event from then on was lost.
+  describe "#publish when Bunny has given up on the connection" do
+    before(:each) do
+      publisher.connect
+      publisher.publish(event)
+      abandon_the_connection
+    end
+
+    it "should open a new connection" do
+      publisher.publish(event)
+      expect(sessions.size).to eq 2
+    end
+
+    it "should publish the event" do
+      expect { publisher.publish(event) }.to_not raise_error
+    end
+
+    it "should report itself connected again" do
+      publisher.publish(event)
+      expect(publisher).to be_connected
+    end
+
+    it "should not reopen a connection Bunny is still recovering" do
+      lose_the_connection
+      expect { publisher.publish(event) }.to raise_error(Flu::ConnectionLostError)
+      expect(sessions.size).to eq 1
+    end
+
+    # A broker that hangs rather than refuses costs a full Bunny 'connect_timeout' per attempt.
+    it "should not pay for an attempt on every publication while the broker is unreachable" do
+      allow(Bunny).to receive(:new) { refusing_session }
+      3.times { expect { publisher.publish(event) }.to raise_error(Flu::ConnectionLostError) }
+      expect(sessions.size).to eq 2
+    end
+  end
+
+  # 'connect' runs from the railtie's 'to_prepare', which runs on every code reload: waiting on a
+  # broker that never answers held the reload interlock, and the request behind it, for good.
+  describe "#connect when the broker does not answer" do
+    before(:each) { allow(Bunny).to receive(:new) { refusing_session } }
+
+    it "should give up after 'max_connect_wait' seconds" do
+      configuration.max_connect_wait = 0
+      expect { publisher.connect }.to raise_error(Flu::ConnectionLostError)
+    end
+
+    it "should say how long it waited" do
+      configuration.max_connect_wait = 0
+      expect { publisher.connect }.to raise_error(/within 0 seconds/)
+    end
+
+    it "should wait for as long as it takes when 'max_connect_wait' is nil" do
+      configuration.max_connect_wait = nil
+      allow(publisher).to receive(:sleep)
+      attempts = 0
+      allow(Bunny).to receive(:new) do
+        attempts += 1
+        attempts < 3 ? refusing_session : open_session
+      end
+      publisher.connect
+      expect(publisher).to be_connected
+    end
+
+    it "should leave a publisher that connects on its next publication" do
+      configuration.max_connect_wait = 0
+      expect { publisher.connect }.to raise_error(Flu::ConnectionLostError)
+      allow(Bunny).to receive(:new) { open_session }
+      publisher.publish(event)
+      expect(publisher).to be_connected
     end
   end
 

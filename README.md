@@ -50,7 +50,8 @@ Each configuration is detailed below.
 ### Start up
 
 `flu-rails` starts automatically through its `Railtie`: there is nothing to call by hand.
-Its startup waits until its RabbitMQ exchange is connected.
+Its startup waits for its RabbitMQ exchange to be connected, for at most `max_connect_wait` seconds. A broker that is still not there by then does not keep the application from booting:
+publishing reopens the connection itself once the broker answers again.
 
 ### Track changes on an ActiveRecord model
 
@@ -170,6 +171,7 @@ All options have a default value. However, all of them can be changed in your in
 | `bunny_options` | `{}` | Hash of symbols | Optional | Additional options to add when connecting the RabbitMQ broker. This overrides the existing options with the same name. | `{ verify_peer: true }` |
 | `max_pending_events` | `1000` | Integer | Optional | An event the broker refused waits for the connection to be back, and is published by the next commit of the thread or at the end of the request. This is how many a thread keeps waiting before handing the oldest to `on_publication_failure`. They are held in memory: a process that dies takes them with it. | `5000` |
 | `on_publication_failure` | `nil` | Lambda | Optional | Called with the event and the error when an event cannot be published, instead of logging it. The transaction the event belongs to has already committed by then, so this is the last chance to keep it: store it and publish it again later. The event is `nil` when it could not even be built. | `lambda { |event, error| OutboxEvent.create!(payload: event&.to_json, error: error.message) }` |
+| `max_connect_wait` | `30` | Integer or `nil` | Optional | How many seconds the startup retries a broker that does not answer before giving up and letting the application boot. Publishing reopens the connection itself once the broker answers again. `nil` waits for the broker for as long as it takes. | `nil` |
 
 ## How to execute tests
 

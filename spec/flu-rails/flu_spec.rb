@@ -47,24 +47,51 @@ RSpec.describe Flu do
       end
     end
 
-    # The railtie re-runs 'init' on every code reload, and 'init' builds a new publisher every time.
-    # The one it replaces owns an open connection and Bunny's heartbeat thread, which nothing else
-    # would ever close.
+    # The railtie re-runs 'init' on every code reload. A tracked model publishes through the very
+    # publisher it was tracked with, so replacing the publisher on each reload left every model the
+    # reload did not reload publishing on a connection 'init' had just closed.
     context "when a publisher has already been created" do
       before(:each) { set_application_name("flu_test") }
 
-      it "should disconnect the publisher it replaces" do
+      it "should keep it" do
         Flu.init
         previous_publisher = Flu.event_publisher
-        expect(previous_publisher).to receive(:disconnect)
+        Flu.init
+        expect(Flu.event_publisher).to be previous_publisher
+      end
+
+      it "should not disconnect it" do
+        Flu.init
+        expect(Flu.event_publisher).to_not receive(:disconnect)
         Flu.init
       end
 
-      it "should replace it" do
-        Flu.init
-        previous_publisher = Flu.event_publisher
-        Flu.init
-        expect(Flu.event_publisher).to_not be previous_publisher
+      # The publisher that answers 'Flu.event_publisher' must be the one the environment calls for,
+      # and the connection of the one it replaces is nobody else's to close.
+      context "when the environment has become a testing one" do
+        before(:each) do
+          stub_rails
+          set_environment_to_test
+        end
+
+        after(:each) { reset_environment }
+
+        it "should replace it with a dummy publisher" do
+          reset_environment
+          Flu.init
+          set_environment_to_test
+          Flu.init
+          expect(Flu.event_publisher).to be_a Flu::Dummy::InMemoryEventPublisher
+        end
+
+        it "should disconnect the publisher it replaces" do
+          reset_environment
+          Flu.init
+          previous_publisher = Flu.event_publisher
+          expect(previous_publisher).to receive(:disconnect)
+          set_environment_to_test
+          Flu.init
+        end
       end
     end
 

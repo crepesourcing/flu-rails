@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [Unreleased]
+
+**Fixed**
+
+* Keep the event publisher across code reloads. The railtie re-runs `init` on every reload, and `init` disconnected the publisher it replaced -- but a tracked model publishes through the very publisher it was tracked with, so every model the reload did not reload kept publishing on a connection that had just been closed, and nothing ever reopened it: `Flu::NotConnectedError` ("'connect' was never called, or 'disconnect' was") on every event from then on, until the process was restarted. The publisher now outlives the reloads, and only a change of kind (the real publisher for the dummy one, or the other way round) replaces and disconnects it.
+* Reopen a connection Bunny has stopped recovering. Bunny reopens a connection it lost, but not one that never opened, nor one whose recovery attempts ran out: `publish` only ever reconnected after a fork, so a publisher left with such a connection raised on every event for the rest of the process. It now reopens it on the next publication, and no more than once every five seconds, since a broker that hangs rather than refuses costs a full `connect_timeout` per attempt.
+
+**Changed**
+
+* `connect` no longer retries an unreachable broker forever. It gives up after `max_connect_wait` seconds and raises `Flu::ConnectionLostError`. The railtie calls it from `to_prepare`, which runs on every code reload: waiting on a broker that never answers held the reload interlock, and the request behind it, for good.
+* A broker that cannot be reached at startup no longer keeps the application from booting. `Flu.start` logs the failure, and publishing opens the connection once the broker answers again.
+
+**Added**
+
+* `max_connect_wait` (default `30`), how many seconds the startup retries a broker that does not answer before letting the application boot. `nil` waits for the broker for as long as it takes.
+
 ### [8.0.6] - 2026-08-19
 
 **Fixed**

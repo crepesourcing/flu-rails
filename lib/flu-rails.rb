@@ -73,10 +73,6 @@ module Flu
     raise "configuration.application_name must not be nil" if @configuration.application_name.nil?
     @logger          = @configuration.logger
     @event_factory   = Flu::EventFactory.new(@configuration)
-    # The railtie re-runs 'init' on every code reload. The publisher being replaced owns an open
-    # connection, its channel and Bunny's heartbeat thread: dropping the reference to it without
-    # closing it leaks all three for the lifetime of the process.
-    @event_publisher&.disconnect
     @event_publisher = create_event_publisher(@configuration)
     extend_models_and_controllers
   end
@@ -90,14 +86,24 @@ module Flu
     end
   end
 
+  # The railtie re-runs 'init' on every code reload. Building a new publisher on each of them left
+  # every reference the application had already taken on the previous one -- a tracked model
+  # publishes through the very publisher it was tracked with -- on a connection 'init' had closed
+  # and that nothing ever reopens. The publisher outlives the reloads, and only a change of kind
+  # replaces it: its connection, its channels and Bunny's heartbeat thread are then closed with it.
   def self.create_event_publisher(configuration)
-    if is_testing_environment?
+    publisher_class = event_publisher_class
+    return @event_publisher if @event_publisher.instance_of?(publisher_class)
+
+    @event_publisher&.disconnect
+    if publisher_class == Flu::Dummy::InMemoryEventPublisher
       logger.info("Loading Flu with a dummy event publisher (this will not connect any exchange)")
-      require_relative "flu-rails/dummy/in_memory_event_publisher"
-      Flu::Dummy::InMemoryEventPublisher.new(@configuration)
-    else
-      Flu::EventPublisher.new(@configuration)
     end
+    publisher_class.new(configuration)
+  end
+
+  def self.event_publisher_class
+    is_testing_environment? ? Flu::Dummy::InMemoryEventPublisher : Flu::EventPublisher
   end
 
   def self.is_testing_environment?
@@ -112,8 +118,13 @@ module Flu
     Flu::CoreExt.extend_controller_classes(@event_factory, @event_publisher, @logger)
   end
 
+  # A broker that is not there yet must not keep the application from booting: publishing reopens
+  # the connection itself once the broker answers again.
   def self.start
-    @event_publisher.connect if config.auto_connect_to_exchange
+    return unless config.auto_connect_to_exchange
+    @event_publisher.connect
+  rescue Flu::ConnectionLostError => error
+    config.logger&.error("Flu could not connect to RabbitMQ: #{error.message}")
   end
 
   def self.load_configuration
@@ -137,6 +148,7 @@ module Flu
       config.bunny_options                  = {}
       config.on_publication_failure         = nil
       config.max_pending_events             = 1000
+      config.max_connect_wait               = 30
     end
   end
 

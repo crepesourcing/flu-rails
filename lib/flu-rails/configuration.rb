@@ -20,6 +20,7 @@ module Flu
                   :application_name,
                   :bunny_options,
                   :on_publication_failure,
-                  :max_pending_events
+                  :max_pending_events,
+                  :max_connect_wait
   end
 end
