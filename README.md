@@ -16,7 +16,7 @@ For now, events are generated from:
 Add the gem to your project's Gemfile:
 
   ```ruby
-  gem "flu-rails", "8.0.6"
+  gem "flu-rails", "8.0.7"
   ```
 
 Then, create an initializer into your Rails app (`config/initializers/flu-rails.rb`)
@@ -317,8 +317,8 @@ scoped RubyGems credential.
 3. Tag the commit and push the tag:
 
 ```
-  $ git tag -a v8.0.6 -m "Version 8.0.6"
-  $ git push origin v8.0.6
+  $ git tag -a v8.0.7 -m "Version 8.0.7"
+  $ git push origin v8.0.7
 ```
 
 The workflow then checks that the tag matches `Flu::VERSION`, runs the tests, builds the gem
