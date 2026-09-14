@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [Unreleased]
+
+**Fixed**
+
+* Close the channel of a thread that has ended. Since 8.0.5, each thread publishes on its own Bunny channel, and that channel was never closed when the thread ended. RabbitMQ allows 2047 channels per connection, so a server that keeps creating and ending threads (Puma does, when `min_threads` is lower than `max_threads`) reached that limit after about a day. From then on, every new thread failed to publish with `RuntimeError: Cannot open a channel: max number of channels on connection reached`, while the older threads kept publishing normally, which made the problem look random. The channels of the threads that have ended are now closed each time a new channel is opened.
+* Publish from a fiber on the channel of its thread. The channel was stored in `Thread.current[]`, which is per fiber, not per thread: a publication made from an `Enumerator` or a streaming response opened one more channel, and never closed it either.
+* Publish on the channel Bunny reopens rather than on a new one. After a lost connection, Bunny reopens the connection first, then the channels it had on it. A thread that published in between opened one more channel, or hung for 15 seconds when Bunny was still in the handshake, and the one Bunny was reopening stayed open on the broker with no thread to use it. Publishing in between now raises `Flu::ConnectionLostError`, as it does while the connection is down, and goes on with the reopened channel once Bunny is done.
+
 ### [8.0.8] - 2026-08-26
 
 **Fixed**

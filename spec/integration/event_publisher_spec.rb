@@ -404,9 +404,39 @@ RSpec.describe Flu::EventPublisher, :rabbitmq do
       expect(message_count_on(queue, expected: 20)).to eq 20
     end
 
-    # The publisher keeps no registry of the channels it handed out, so this is what makes
-    # 'disconnect' safe: a thread that was never told about it finds its channel closed and opens
-    # a new one by itself.
+    # A channel leaves this list once the broker confirmed it closed, and none of these examples has
+    # the broker close one itself, so this is the number of channels the broker counts for this
+    # connection.
+    def open_channel_count
+      publisher.instance_variable_get(:@connection).instance_variable_get(:@channels).size
+    end
+
+    it "should close the channels of the threads that have ended" do
+      20.times { Thread.new { publisher.publish(event) }.join }
+      expect(open_channel_count).to eq 2
+    end
+
+    # What climbed on the management UI was the broker's own count.
+    # Reading it costs a few seconds, so one example does.
+    context "as the broker counts them" do
+      let(:connection_name) { RabbitmqHelper.unique_name("connection") }
+      let(:configuration)   { RabbitmqHelper.configuration(bunny_options: { connection_name: connection_name }) }
+
+      it "should leave only the channels of the threads still alive" do
+        20.times { Thread.new { publisher.publish(event) }.join }
+        expect(channels_counted_by_the_broker(connection_name, expected: 2)).to eq 2
+      end
+    end
+
+    it "should give the fibers of a thread the channel of that thread" do
+      fiber_channels = 3.times.map do
+        Fiber.new { publisher.publish(event); exchange_of_current_thread.channel.id }.resume
+      end
+      expect(fiber_channels.uniq).to eq [exchange_of_current_thread.channel.id]
+    end
+
+    # 'disconnect' does not warn the other threads. Each one finds its channel closed on its next
+    # publication and opens a new one by itself.
     it "should replace a cached channel that the connection closed under it" do
       resume    = Queue.new
       exchanges = Queue.new
@@ -435,6 +465,70 @@ RSpec.describe Flu::EventPublisher, :rabbitmq do
       expect(before_disconnect.channel).to_not be_open
       expect(after_reconnect).to_not be before_disconnect
       expect(after_reconnect.channel).to be_open
+    end
+
+    # Bunny reopens the connection first, then the channels it had on it. In between, the
+    # connection is open and the channels are not, and a thread that opened another channel there
+    # would leave the one Bunny is reopening orphaned: open on the broker, held by no thread.
+    # The connection is open from its handshake on, and the channels are marked open right after
+    # the topology recovery: holding Bunny at either end holds the publisher in the window.
+    { "during the handshake" => :open_connection, "after the topology recovery" => :recover_topology }.each do |moment, step|
+      describe "while Bunny is reopening them, #{moment}" do
+        let(:connection_name) { RabbitmqHelper.unique_name("connection") }
+        let(:configuration) do
+          RabbitmqHelper.configuration(bunny_options: { connection_name:           connection_name,
+                                                        network_recovery_interval: 1 })
+        end
+
+        let(:reopening) { Queue.new }
+        let(:resume)    { Queue.new }
+
+        let!(:exchange_before_the_outage) { exchange_of_current_thread }
+
+        before(:each) do
+          connection = publisher.instance_variable_get(:@connection)
+          allow(connection).to receive(step).and_wrap_original do |original|
+            reopening.push(:started)
+            resume.pop
+            original.call
+          end
+          close_connection_from_the_broker(publisher, connection_name)
+          raise "Bunny never started reopening the connection" if reopening.pop(timeout: 30).nil?
+        end
+
+        # An example that leaves Bunny held would leave the connection closed under its recovery.
+        after(:each) do
+          resume.push(:go)
+          wait_for_recovery(publisher)
+        end
+
+        def publish_meanwhile
+          publisher.publish(event)
+        rescue Flu::ConnectionLostError
+          nil
+        end
+
+        it "should raise rather than open another channel" do
+          expect { publisher.publish(event) }.to raise_error(Flu::ConnectionLostError, /works again once it has/)
+        end
+
+        it "should leave the connection with the channel being reopened only" do
+          publish_meanwhile
+          resume.push(:go)
+          wait_for_recovery(publisher)
+          expect(open_channel_count).to eq 1
+        end
+
+        it "should publish on the reopened channel once Bunny is done" do
+          queue = subscribe_to
+          publish_meanwhile
+          resume.push(:go)
+          wait_for_recovery(publisher)
+          publisher.publish(event)
+          expect(exchange_of_current_thread).to be exchange_before_the_outage
+          expect(message_count_on(queue, expected: 1)).to eq 1
+        end
+      end
     end
   end
 

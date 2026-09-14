@@ -22,6 +22,8 @@ module Flu
       @configuration   = configuration
       @mutex           = Mutex.new
       @next_attempt_at = 0
+      @exchanges       = {}
+      @exchanges_mutex = Mutex.new
     end
 
     def publish(event, persistent=true)
@@ -65,7 +67,7 @@ module Flu
         @connection.close if connected?
         @connection = nil
         @pid        = nil
-        Thread.current[exchange_key] = nil
+        forget_exchanges
       end
     end
 
@@ -115,26 +117,80 @@ module Flu
       !@pid.nil? && @pid != Process.pid
     end
 
-    # Per process too: a channel cached before the fork still reports itself open in the child.
-    def exchange_key
-      :"flu_exchange_#{object_id}_#{Process.pid}"
-    end
-
-    # One channel per thread rather than one for the whole publisher. 
-    # Bunny serialises every publication on the channel's own mutex.
+    # One channel per thread, kept in '@exchanges' (thread => exchange).
     #
-    # No bookkeeping of the channels handed out is needed. 
-    # Closing the connection closes all of them, so a thread holding a closed channel simply opens a new one on its next publication:
-    # 'disconnect' and a reconnection are both covered without reaching into other threads.
+    # Why not 'Thread.current[]': it is per fiber, not per thread, and a channel stored there is
+    # never closed when the thread ends. RabbitMQ allows 2047 channels per connection, so a server
+    # that keeps creating and ending threads hit that limit after a day and could not publish
+    # from any new thread. Now, each time a channel is opened, the channels of the threads that
+    # have ended are closed.
+    #
+    # Until then, '@exchanges' still references the ended threads and what
+    # their thread-local variables hold: a weak reference would lose the channel before it is closed.
+    #
+    # A thread whose channel is closed opens a new one on its next publication.
+    # That is what makes 'disconnect' and a reconnection safe.
     # A connection that is down is reported as such rather than left to 'create_channel', which
     # raises a bare 'RuntimeError' the caller has no way to tell from any other.
+    # The connection is checked before the cached channel: Bunny marks the channels open before it
+    # announces it is done, so a thread that read its channel closed, then the announcement, would
+    # open one more.
     def exchange
       reconnect if forked? || (abandoned? && due_for_another_attempt?)
-      cached = Thread.current[exchange_key]
-      return cached if cached && cached.channel.open?
       raise NotConnectedError, NOT_CONNECTED_MESSAGE if @connection.nil?
       raise ConnectionLostError, CONNECTION_LOST_MESSAGE unless @connection.open?
-      Thread.current[exchange_key] = declare_exchange
+      raise ConnectionLostError, CONNECTION_LOST_MESSAGE if being_reopened?
+      cached = @exchanges_mutex.synchronize { @exchanges[Thread.current] }
+      return cached if cached && cached.channel.open?
+      remember_exchange(declare_exchange)
+    end
+
+    # Bunny reopens the connection first, then the channels it had on it. A channel opened in between
+    # stays open on the broker with no thread to use it, and the session does not show that window:
+    # 'open?' is true as soon as the socket is. Bunny announces each recovery attempt and its
+    # completion instead. The session is kept rather than a flag: a child process inherits the flag
+    # of a connection its parent was reopening, and opens one of its own.
+    # Bunny holds one callback of each: the ones the application gave in 'bunny_options' are called
+    # from here.
+    def hold_publishing_while_bunny_reopens(session, options)
+      started   = options[:recovery_attempt_started]
+      completed = options[:recovery_completed]
+      session.before_recovery_attempt_starts { @being_reopened = session; started&.call }
+      session.after_recovery_completed { @being_reopened = nil if @being_reopened.equal?(session); completed&.call }
+    end
+
+    def being_reopened?
+      @being_reopened&.equal?(@connection)
+    end
+
+    def remember_exchange(exchange)
+      ended = @exchanges_mutex.synchronize do
+        @exchanges[Thread.current] = exchange
+        @exchanges.keys.reject(&:alive?).map { |thread| @exchanges.delete(thread) }
+      end
+
+      unless ended.empty?
+        @logger.debug { "Closing the channels of #{ended.size} threads that have ended." }
+      end
+
+      ended.each { |orphan| close_channel(orphan.channel) }
+      exchange
+    end
+
+    # Forgets the channels without closing them.
+    # Their connection is gone: closed by 'disconnect',
+    # lost, or inherited from a parent process
+    # (closing that one would close the parent's socket).
+    def forget_exchanges
+      @exchanges_mutex.synchronize { @exchanges.clear }
+    end
+
+    # Closing may fail (the broker may have closed the channel already). That is fine: the thread
+    # is gone, and the publication in progress must not fail because of it.
+    def close_channel(channel)
+      channel.close if channel.open?
+    rescue StandardError => error
+      @logger.debug { "Could not close the channel of an ended thread: #{error.class}: #{error.message}" }
     end
 
     def declare_exchange
@@ -153,10 +209,14 @@ module Flu
         automatically_recover: true
       }.merge(@configuration.bunny_options || {})
 
+      # Before 'start': when it fails, the channels of the previous connection must be gone already,
+      # or the forking thread would publish on the parent's channel in a child that has no broker.
+      forget_exchanges
       @connection = Bunny.new(options)
+      hold_publishing_while_bunny_reopens(@connection, options)
       @connection.start
       @pid = Process.pid
-      Thread.current[exchange_key] = declare_exchange
+      remember_exchange(declare_exchange)
     end
   end
 end

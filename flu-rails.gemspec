@@ -28,6 +28,9 @@ Gem::Specification.new do |spec|
   spec.add_dependency "activerecord",             "~> 8.0"
   spec.add_dependency "activesupport",            "~> 8.0"
   spec.add_dependency "bunny",                    "~> 3.1"
+  # json 3 refuses the options Faraday 2.14.3 still passes to 'JSON.parse' as a hash.
+  # Fixed on Faraday's main branch, not released yet.
+  spec.add_dependency "json",                     "< 3"
   spec.add_dependency "logger",                   "~> 1.7"
   spec.add_dependency "rabbitmq_http_api_client", "~> 3.2"
 
