@@ -53,6 +53,9 @@ Each configuration is detailed below.
 Its startup waits for its RabbitMQ exchange to be connected, for at most `max_connect_wait` seconds. A broker that is still not there by then does not keep the application from booting:
 publishing reopens the connection itself once the broker answers again.
 
+It opens one connection per process, and one channel on it per thread that publishes. A fiber publishes on the channel of its thread.
+The channels of the threads that have ended are closed the next time a thread opens one, so a server that keeps creating and ending threads (Puma does, when `min_threads` is lower than `max_threads`) does not accumulate them.
+
 ### Track changes on an ActiveRecord model
 
 All subclasses of `ActiveRecord::Base` that call `track_entity_changes` are "tracked". _E.g._:

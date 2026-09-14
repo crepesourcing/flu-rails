@@ -36,12 +36,21 @@ RSpec.describe Flu::EventPublisher do
       raise RuntimeError, "this connection is not open." unless session.open?
       open_channel
     end
+    record_recovery_callbacks(session)
     sessions.push(session)
     session
   end
 
+  # Bunny calls the first back before each recovery attempt, and the second once it has recovered.
+  let(:recovery_callbacks) { Hash.new { |callbacks, session| callbacks[session] = {} } }
+
+  def record_recovery_callbacks(session)
+    allow(session).to receive(:before_recovery_attempt_starts) { |&block| recovery_callbacks[session][:started] = block }
+    allow(session).to receive(:after_recovery_completed) { |&block| recovery_callbacks[session][:completed] = block }
+  end
+
   def open_channel
-    channel = instance_double(Bunny::Channel, open?: true)
+    channel = instance_double(Bunny::Channel, open?: true, close: nil)
     allow(channel).to receive(:topic) { instance_double(Bunny::Exchange, channel: channel, publish: nil) }
     channels.push(channel)
     channel
@@ -53,6 +62,20 @@ RSpec.describe Flu::EventPublisher do
     allow(sessions.last).to receive(:status).and_return(:disconnected)
     allow(sessions.last).to receive(:recovering_from_network_failure?).and_return(true)
     channels.each { |channel| allow(channel).to receive(:open?).and_return(false) }
+  end
+
+  # What Bunny does once the broker is back: it announces the attempt, reopens the connection, then
+  # the channels it had on it, and announces it is done.
+  def reopen_the_connection
+    recovery_callbacks[sessions.last][:started].call
+    allow(sessions.last).to receive(:open?).and_return(true)
+    allow(sessions.last).to receive(:status).and_return(:open)
+    allow(sessions.last).to receive(:recovering_from_network_failure?).and_return(false)
+  end
+
+  def finish_reopening_the_channels
+    channels.each { |channel| allow(channel).to receive(:open?).and_return(true) }
+    recovery_callbacks[sessions.last][:completed].call
   end
 
   # What Bunny leaves behind once it has run out of recovery attempts: a closed session it will
@@ -73,6 +96,7 @@ RSpec.describe Flu::EventPublisher do
                               automatically_recover?:           true,
                               recovering_from_network_failure?: false)
     allow(session).to receive(:start).and_raise(Bunny::TCPConnectionFailedForAllHosts)
+    record_recovery_callbacks(session)
     sessions.push(session)
     session
   end
@@ -123,6 +147,72 @@ RSpec.describe Flu::EventPublisher do
     it "should not try to open a channel on it" do
       expect(sessions.last).to_not receive(:create_channel)
       expect { publisher.publish(event) }.to raise_error(Flu::ConnectionLostError)
+    end
+  end
+
+  # Bunny reopens the connection first, then the channels it had on it. In between, the connection
+  # is open and the channels are not, and a channel opened there was one more on the broker for
+  # good: the one Bunny was reopening was held by no thread from then on.
+  describe "#publish while Bunny is reopening the channels" do
+    before(:each) do
+      publisher.connect
+      publisher.publish(event)
+      lose_the_connection
+      reopen_the_connection
+    end
+
+    def publish_meanwhile
+      publisher.publish(event)
+    rescue Flu::ConnectionLostError
+      nil
+    end
+
+    it "should raise a Flu error rather than open another channel" do
+      expect(sessions.last).to_not receive(:create_channel)
+      expect { publisher.publish(event) }.to raise_error(Flu::ConnectionLostError)
+    end
+
+    it "should say that publishing works again once Bunny is done" do
+      expect { publisher.publish(event) }.to raise_error(/works again once it has/)
+    end
+
+    it "should publish on the reopened channel once Bunny is done" do
+      publish_meanwhile
+      finish_reopening_the_channels
+      publisher.publish(event)
+      expect(channels.size).to eq 1
+    end
+
+    # Bunny marks the channels open, then announces it is done. A thread that read its channel
+    # closed before the mark, and the announcement after, would open one more.
+    it "should not open another channel when Bunny finishes during the publication" do
+      allow(channels.first).to receive(:open?) { finish_reopening_the_channels; false }
+      publish_meanwhile
+      expect(channels.size).to eq 1
+    end
+
+    # A child process inherits the flag of a connection its parent was reopening, and opens one of
+    # its own.
+    it "should not hold a thread from opening a channel on the connection that replaced it" do
+      simulate_fork
+      publisher.publish(event)
+      expect { Thread.new { publisher.publish(event) }.join }.to_not raise_error
+    end
+
+    # Bunny holds one callback of each, and the publisher's took their place.
+    context "when the application gave Bunny recovery callbacks of its own in 'bunny_options'" do
+      let(:calls) { [] }
+      let(:configuration) do
+        super().tap do |configuration|
+          configuration.bunny_options = { recovery_attempt_started: -> { calls << :started },
+                                          recovery_completed:       -> { calls << :completed } }
+        end
+      end
+
+      it "should call them as Bunny would have" do
+        finish_reopening_the_channels
+        expect(calls).to eq [:started, :completed]
+      end
     end
   end
 
@@ -282,6 +372,15 @@ RSpec.describe Flu::EventPublisher do
       expect(publisher.send(:exchange).channel).to_not be inherited_exchange.channel
     end
 
+    context "when the broker cannot be reached from the child" do
+      before(:each) { allow(Bunny).to receive(:new) { refusing_session } }
+
+      it "should not publish on the inherited channel" do
+        expect(inherited_exchange).to_not receive(:publish)
+        expect { publisher.publish(event) }.to raise_error(Flu::ConnectionLostError)
+      end
+    end
+
     # The socket under an inherited connection is the parent's: closing it here closes it there too.
     it "should not close the connection it inherited" do
       expect(sessions.first).to_not receive(:close)
@@ -296,6 +395,64 @@ RSpec.describe Flu::EventPublisher do
     it "should raise on the next publication rather than reconnecting behind the disconnection" do
       publisher.disconnect
       expect { publisher.publish(event) }.to raise_error(Flu::NotConnectedError)
+    end
+  end
+
+  # A channel stays open on the broker after its thread ends, unless something closes it. RabbitMQ
+  # allows 2047 per connection: a server that keeps creating and ending threads hit that limit
+  # after a day, and could not publish from any new thread from then on.
+  describe "the channel of a thread that has ended" do
+    before(:each) { publisher.connect }
+
+    def channel_of_a_thread_that_ended
+      Thread.new { publisher.publish(event); publisher.send(:exchange).channel }.value
+    end
+
+    it "should be closed when another thread opens one" do
+      ended = channel_of_a_thread_that_ended
+      Thread.new { publisher.publish(event) }.join
+      expect(ended).to have_received(:close)
+    end
+
+    it "should leave the channels of the threads still alive open" do
+      channel_of_a_thread_that_ended
+      Thread.new { publisher.publish(event) }.join
+      expect(channels.first).to_not have_received(:close)
+    end
+
+    it "should not be closed again once the connection was" do
+      ended = channel_of_a_thread_that_ended
+      publisher.disconnect
+      publisher.connect
+      Thread.new { publisher.publish(event) }.join
+      expect(ended).to_not have_received(:close)
+    end
+
+    it "should not cost the publication that closes it when the broker closed it first" do
+      ended = channel_of_a_thread_that_ended
+      allow(ended).to receive(:close).and_raise(Bunny::ChannelAlreadyClosed.new("closed", ended))
+      expect { Thread.new { publisher.publish(event) }.join }.to_not raise_error
+    end
+
+    # A channel inherited from the parent process runs on the parent's socket: closing it here
+    # would close it for the parent too.
+    it "should not be closed when it was inherited from the parent process" do
+      inherited = channel_of_a_thread_that_ended
+      simulate_fork
+      publisher.publish(event)
+      Thread.new { publisher.publish(event) }.join
+      expect(inherited).to_not have_received(:close)
+    end
+  end
+
+  # 'Thread.current[]' is per fiber, not per thread. A channel stored there was opened once per
+  # fiber, and never closed: every publication from an Enumerator or a streaming body leaked one.
+  describe "#publish from a fiber" do
+    before(:each) { publisher.connect }
+
+    it "should publish on the channel of the thread rather than open one per fiber" do
+      2.times { Fiber.new { publisher.publish(event) }.resume }
+      expect(channels.size).to eq 1
     end
   end
 

@@ -148,10 +148,36 @@ RSpec.shared_context "a rabbitmq broker" do
     raise "Bunny never noticed the closed connection" if publisher.connected?
   end
 
+  # The number of channels the broker counts on a connection: what the management UI shows. The
+  # management API reports it a few seconds late, so this waits for it to reach 'expected', and
+  # returns what it had reached by then.
+  def channels_counted_by_the_broker(connection_name, expected:, timeout: 20)
+    deadline = Time.now + timeout
+    readings = Enumerator.produce(channel_count_on(connection_name)) do
+      sleep 0.2
+      channel_count_on(connection_name)
+    end
+    readings.find { |count| count == expected || Time.now > deadline }
+  end
+
+  def channel_count_on(connection_name)
+    connection = management_client.list_connections.find do |candidate|
+      candidate.client_properties["connection_name"] == connection_name
+    end
+    connection&.channels
+  end
+
   def wait_for_recovery(publisher, timeout: 30)
     deadline = Time.now + timeout
-    sleep 0.1 while !publisher.connected? && Time.now < deadline
-    raise "the connection never recovered" unless publisher.connected?
+    sleep 0.1 until recovered?(publisher) || Time.now > deadline
+    raise "the connection never recovered" unless recovered?(publisher)
+  end
+
+  def recovered?(publisher)
+    publisher.send(:exchange)
+    true
+  rescue Flu::ConnectionLostError
+    false
   end
 
   def declared_queues
