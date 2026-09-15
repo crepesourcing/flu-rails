@@ -191,6 +191,30 @@ RSpec.describe Flu::EventPublisher do
       expect(channels.size).to eq 1
     end
 
+    # 'PendingPublications' asks 'connected?' before it retries an event, and charges the event an
+    # attempt when the publisher said yes and then refused. It has three. One drain runs right after
+    # the failing commit, another at the next commit on the thread or at the end of the job: a
+    # publisher that said it was connected while Bunny reopened the channels cost a thread committing
+    # twice in that window the event of a committed transaction.
+    it "should not be connected, so that a pending publication waits rather than spend an attempt" do
+      expect(publisher.connected?).to be false
+    end
+
+    it "should be connected again once Bunny is done" do
+      finish_reopening_the_channels
+      expect(publisher.connected?).to be true
+    end
+
+    it "should let a pending publication wait for Bunny rather than spend its attempts" do
+      pending = Flu::PendingPublications.new
+      pending.push(event, publisher, Flu::ConnectionLostError.new("reopening"))
+      3.times { pending.drain }
+      expect(pending.size).to eq 1
+      finish_reopening_the_channels
+      pending.drain
+      expect(pending.size).to eq 0
+    end
+
     # A child process inherits the flag of a connection its parent was reopening, and opens one of
     # its own.
     it "should not hold a thread from opening a channel on the connection that replaced it" do

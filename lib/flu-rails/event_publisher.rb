@@ -53,8 +53,15 @@ module Flu
       end
     end
 
+    # Not connected while Bunny is reopening the channels either, although the connection is 'open?'
+    # from its handshake on: 'exchange' refuses to publish in that window, and 'PendingPublications'
+    # asks here before it retries. A publisher that said it was connected and then refused cost the
+    # event one of its attempts on every drain -- the one right after the failing commit, then the
+    # next commit or the end of the job -- and a thread committing twice within the few milliseconds
+    # Bunny takes to reopen the channels lost the event for a committed transaction. Saying it is not
+    # connected makes the event wait for Bunny to be done, as it does while the connection is down.
     def connected?
-      !forked? && !@connection.nil? && @connection.open?
+      !forked? && !@connection.nil? && @connection.open? && !being_reopened?
     end
 
     # Closing the connection closes every channel opened on it, and stops the heartbeat and
