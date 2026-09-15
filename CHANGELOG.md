@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [Unreleased]
+
+**Fixed**
+
+* Keep a pending publication waiting while Bunny reopens the channels, rather than spend its attempts. Since 8.0.9, publishing while Bunny reopens the channels raises `Flu::ConnectionLostError`, and the event is kept for another attempt. But the publisher still said it was `connected?` in that window -- the connection is `open?` from its handshake on -- so every drain of the pending publications retried the event at once and charged it an attempt: one right after the failing commit, another at the next commit on the thread or at the end of the job. An event failing there had one attempt left out of three, and a thread committing twice within the few milliseconds Bunny takes to reopen the channels lost it for a transaction that had committed. `connected?` is now false while Bunny reopens the channels, as it is while the connection is down, and a pending publication waits for Bunny to be done.
+
 ### [8.0.9] - 2026-09-14
 
 * Enforce gem `json < 3`
